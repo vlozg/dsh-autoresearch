@@ -1,0 +1,223 @@
+/* dsh-plugin-autoresearch client sheet.
+ * .nomodule.css: injected verbatim as a <style> tag; all selectors are
+ * .ar-prefixed so the sheet never leaks into (or inherits from) the shell.
+ */
+.ar-root {
+  all: initial;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+.ar-root * { box-sizing: border-box; }
+
+/* ---- collapsed floating pill (bottom-right) ---- */
+.ar-float {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(13, 18, 28, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  user-select: none;
+  min-height: 44px;
+  max-width: min(78vw, 420px);
+}
+.ar-float:active { transform: scale(0.98); }
+.ar-float-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ar-float-metric { font-weight: 650; color: #f1f5f9; }
+.ar-float-unit, .ar-float-count { font-size: 12px; color: #94a3b8; }
+.ar-float-loop { font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+
+/* ---- status dot ---- */
+.ar-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: #64748b;
+}
+.ar-dot.ar-live { background: #22c55e; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); animation: ar-pulse 1.6s infinite; }
+.ar-dot.ar-running { background: #38bdf8; box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.6); animation: ar-pulse 1.1s infinite; }
+.ar-dot.ar-idle { background: #f59e0b; }
+.ar-dot.ar-done { background: #22c55e; }
+.ar-dot.ar-error { background: #ef4444; }
+.ar-dot.ar-off { background: #64748b; }
+@keyframes ar-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+/* ---- expanded dashboard panel ---- */
+.ar-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 61;
+  width: min(480px, calc(100vw - 24px));
+  max-height: min(76vh, 640px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: rgba(13, 18, 28, 0.97);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.ar-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  flex: none;
+}
+.ar-head-main { flex: 1; min-width: 0; }
+.ar-title { font-weight: 700; font-size: 15px; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-subtitle { font-size: 12px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-body { overflow-y: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+
+.ar-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.ar-stat {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  padding: 7px 8px;
+  min-width: 0;
+}
+.ar-stat-k { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: #8ea0b5; }
+.ar-stat-v { font-size: 14px; font-weight: 700; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-stat-v.ar-good { color: #4ade80; }
+.ar-stat-v.ar-warn { color: #fbbf24; }
+
+/* ---- running card ---- */
+.ar-running {
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.07);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.ar-running-head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #7dd3fc; }
+.ar-running-cmd { margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #cbd5e1; word-break: break-all; }
+.ar-tail {
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #a8f0d8;
+  background: rgba(2, 8, 14, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- run rows ---- */
+.ar-runs { display: flex; flex-direction: column; gap: 6px; }
+.ar-run {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.05);
+  min-width: 0;
+}
+.ar-run-no { font-weight: 700; font-size: 12.5px; color: #94a3b8; flex: none; min-width: 26px; }
+.ar-chip {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.ar-chip.ar-keep { background: rgba(34, 197, 94, 0.16); color: #4ade80; }
+.ar-chip.ar-discard { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.ar-chip.ar-crash { background: rgba(239, 68, 68, 0.16); color: #f87171; }
+.ar-chip.ar-checks { background: rgba(249, 115, 22, 0.16); color: #fb923c; }
+.ar-run-metric { flex: none; font-weight: 700; font-size: 13px; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+.ar-run-desc { flex: 1; min-width: 0; font-size: 12px; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-meta { flex: none; font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; }
+.ar-conf { flex: none; font-size: 11px; color: #94a3b8; }
+.ar-conf.ar-strong { color: #4ade80; }
+
+.ar-actions { display: flex; gap: 8px; flex: none; padding: 10px 12px; border-top: 1px solid rgba(148, 163, 184, 0.16); }
+.ar-btn {
+  flex: 1;
+  min-height: 42px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+.ar-btn:active { transform: scale(0.99); }
+.ar-btn.ar-danger { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
+.ar-btn.ar-good { border-color: rgba(34, 197, 94, 0.45); background: rgba(34, 197, 94, 0.12); color: #86efac; }
+.ar-btn:disabled { opacity: 0.45; }
+.ar-close { flex: none; border: 0; background: transparent; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 4px 8px; min-width: 36px; min-height: 36px; }
+.ar-note { font-size: 11.5px; color: #8ea0b5; }
+.ar-empty { padding: 18px 4px; text-align: center; color: #8ea0b5; font-size: 13px; }
+
+@media (max-width: 560px) {
+  .ar-float { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .ar-panel { right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 16px); max-height: 82vh; }
+  .ar-stats { grid-template-columns: repeat(2, 1fr); }
+  .ar-run { flex-wrap: wrap; row-gap: 4px; }
+  .ar-run-desc { flex-basis: 100%; white-space: normal; }
+}
+
+/* ---- better-sidebar tab carrier ---- */
+.ar-tabroot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  font-size: 13px;
+  background: transparent;
+}
+.ar-tabroot .ar-actions { padding: 4px 0 0; }
+.ar-tabhead { display: flex; align-items: center; gap: 9px; flex: none; }
+.ar-tabfoot { flex: none; position: sticky; bottom: 0; background: inherit; }
+
+/* ---- toolview cards (conversation rows) ---- */
+.ar-tool { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; font-size: 13px; }
+.ar-tool-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(148, 163, 184, 0.06); }
+.ar-tool-title { font-weight: 700; font-size: 12.5px; color: inherit; }
+.ar-tool-summary { flex: 1; min-width: 0; font-size: 12px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.ar-tool-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.ar-chiprow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ar-line { font-size: 12.5px; }
+.ar-line .ar-dim { opacity: 0.65; }
+.ar-git { font-size: 12px; opacity: 0.85; font-variant-numeric: tabular-nums; }

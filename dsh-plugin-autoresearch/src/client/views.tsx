@@ -1,0 +1,505 @@
+/**
+ * Dashboard overlay (shell.overlay seat) and the three keyed toolviews.
+ * The overlay is the phone-friendly carrier: a floating capsule with the
+ * live loop state, expanding into a scrollable panel with stats, the running
+ * tail, the run table, and stop/resume controls.
+ */
+
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { formatAgo, formatElapsed, formatNum } from "./format";
+import { parseInitText, parseLogText, parseRunText } from "./parse";
+import {
+  type AutoresearchClientStore,
+  type ExperimentSnapshot,
+  type RunEntry,
+  type SessionView,
+} from "./store";
+
+// ---------------------------------------------------------------------------
+// Small shared atoms
+// ---------------------------------------------------------------------------
+
+function StatusDot(props: { state: string; className?: string }): ReactNode {
+  return <span className={"ar-dot ar-" + props.state + (props.className !== undefined ? " " + props.className : "")} />;
+}
+
+function Chip(props: { status: string }): ReactNode {
+  const chipClass = props.status === "keep" ? "ar-keep" : props.status === "discard" ? "ar-discard" : props.status === "crash" ? "ar-crash" : "ar-checks";
+  return <span className={"ar-chip " + chipClass}>{props.status === "checks_failed" ? "checks" : props.status}</span>;
+}
+
+function confidenceClass(confidence: number | null | undefined): string {
+  if (confidence === null || confidence === undefined) return "";
+  return confidence >= 2 ? "ar-strong" : "";
+}
+
+const subscribeNever = (): (() => void) => () => {};
+const snapshotNever = (): boolean => false;
+
+function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): string | null {
+  const earlier = snapshot.runs.filter((other) => other.run < entry.run && other.status === "keep");
+  if (earlier.length === 0) return null;
+  const baseline = earlier[earlier.length - 1].metric;
+  if (baseline === 0 || !Number.isFinite(baseline)) return null;
+  const delta = entry.metric - baseline;
+  const pct = ((delta / baseline) * 100).toFixed(1);
+  const sign = delta > 0 ? "+" : "";
+  const better = snapshot.bestDirection === "lower" ? delta < 0 : delta > 0;
+  return sign + pct + "%" + (better ? " ▼" : " ▲");
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+function loopState(snapshot: ExperimentSnapshot): { state: string; label: string } {
+  if (snapshot.running !== null) return { state: "running", label: snapshot.running.phase === "checks" ? "checking" : "running" };
+  if (snapshot.loop) return { state: "live", label: "loop on" };
+  if (snapshot.loopStopReason !== null) return { state: "idle", label: "loop off" };
+  return { state: "off", label: "idle" };
+}
+
+function statCell(label: string, value: string, modifier?: string): ReactNode {
+  return (
+    <div className="ar-stat">
+      <div className="ar-stat-k">{label}</div>
+      <div className={"ar-stat-v" + (modifier !== undefined ? " " + modifier : "")}>{value}</div>
+    </div>
+  );
+}
+
+function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: number }): ReactNode {
+  const { snapshot, entry, now } = props;
+  const delta = bestDelta(snapshot, entry);
+  const conf = entry.confidence;
+  return (
+    <div className="ar-run">
+      <span className="ar-run-no">#{entry.run}</span>
+      <Chip status={entry.status} />
+      <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
+      {delta !== null ? <span className={"ar-run-meta" + (delta.indexOf("▼") >= 0 ? " ar-good-stat" : "")}>{delta}</span> : null}
+      <span className="ar-run-desc">{entry.description}</span>
+      {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}×</span> : null}
+      <span className="ar-run-meta">{formatAgo(entry.timestamp, now)}</span>
+      {entry.commit !== "" ? <span className="ar-run-meta">{entry.commit.slice(0, 7)}</span> : null}
+    </div>
+  );
+}
+
+function RunningCard(props: { snapshot: ExperimentSnapshot; tail?: string; now: number }): ReactNode {
+  const { snapshot, now } = props;
+  const running = snapshot.running;
+  if (running === null) return null;
+  const elapsed = formatElapsed(Math.max(0, (now - running.startedAt) / 1000));
+  const tail = props.tail ?? "";
+  return (
+    <div className="ar-running">
+      <div className="ar-running-head">
+        <StatusDot state="running" />
+        <span>{running.phase === "checks" ? "Running checks" : "Running benchmark"}</span>
+        <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>{elapsed}</span>
+      </div>
+      <div className="ar-running-cmd">{running.command}</div>
+      {tail !== "" ? <div className="ar-tail">{tail.length > 4000 ? tail.slice(-4000) : tail}</div> : null}
+    </div>
+  );
+}
+
+/** External-store read of the better-sidebar carrier flag (set by index.ts). */
+export interface FlagStore {
+  getSnapshot(): boolean;
+  subscribe(listener: () => void): () => void;
+}
+
+export interface DashboardEntryProps {
+  store: AutoresearchClientStore;
+  /** When true, the sidebar tab carries the dashboard and the capsule hides. */
+  sidebarMode?: FlagStore;
+}
+
+/** shell.overlay occupant: floating capsule + expanding dashboard panel. */
+export function DashboardEntry(props: DashboardEntryProps): ReactNode {
+  const { store } = props;
+  const view = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const sidebarMode = useSyncExternalStore(
+    props.sidebarMode !== undefined ? props.sidebarMode.subscribe : subscribeNever,
+    props.sidebarMode !== undefined ? props.sidebarMode.getSnapshot : snapshotNever,
+  );
+  const [expanded, setExpanded] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const holdRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const release = store.hold();
+    holdRef.current = release;
+    return () => {
+      holdRef.current = null;
+      release();
+    };
+  }, [store]);
+
+  const hasRunning = view.sessions.some((session) => session.snapshot.running !== null);
+  useEffect(() => {
+    if (!hasRunning && !expanded) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [hasRunning, expanded]);
+
+  // The better-sidebar tab is the carrier; the floating capsule yields.
+  // (Placed after every hook so flipping the mode keeps hook order stable.)
+  if (sidebarMode) return null;
+
+  const session = view.sessions[0];
+  const headline = session !== undefined ? loopState(session.snapshot) : { state: "off", label: "no session" };
+
+  if (!expanded) {
+    const best = session !== undefined && session.snapshot.bestMetric !== null
+      ? formatNum(session.snapshot.bestMetric, session.snapshot.metricUnit)
+      : null;
+    return (
+      <div
+        className="ar-root"
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(true)}
+        onKeyDown={(event) => { if (event.key === "Enter") setExpanded(true); }}
+      >
+        <div className="ar-float" data-state={headline.state}>
+          <StatusDot state={headline.state} />
+          <span className="ar-float-loop">{headline.label}</span>
+          {best !== null ? (
+            <span className="ar-float-label">
+              <span className="ar-float-metric">{best}</span>
+              {session !== undefined ? (
+                <span className="ar-float-count">
+                  #{session.snapshot.runs.length > 0 ? String(session.snapshot.runs[session.snapshot.runs.length - 1].run) : "–"}
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="ar-float-label">
+              <span className="ar-float-metric">autoresearch</span>
+              {session !== undefined ? <span className="ar-float-count">{session.snapshot.runs.length} runs</span> : null}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const runAction = async (kind: "stop" | "resume", sessionId: string): Promise<void> => {
+    setBusy(kind);
+    setActionError(null);
+    const result = kind === "stop" ? await store.stopExperiment(sessionId) : await store.resumeExperiment(sessionId);
+    setBusy(null);
+    if (!result.ok) setActionError(result.error ?? "action failed");
+  };
+
+  return (
+    <div className="ar-root">
+      <div className="ar-panel" role="dialog" aria-label="autoresearch dashboard">
+        <div className="ar-head">
+          <StatusDot state={headline.state} />
+          <div className="ar-head-main">
+            <div className="ar-title">{session !== undefined ? session.snapshot.name : "Autoresearch"}</div>
+            <div className="ar-subtitle">
+              {headline.label}
+              {view.subscribed ? "" : " · reconnecting"}
+              {session !== undefined && session.snapshot.loopStopReason !== null ? " · " + session.snapshot.loopStopReason : ""}
+            </div>
+          </div>
+          <button type="button" className="ar-close" aria-label="Collapse dashboard" onClick={() => setExpanded(false)}>
+            ×
+          </button>
+        </div>
+        <div className="ar-body">
+          {session === undefined ? (
+            <div className="ar-empty">
+              {view.subscribed ? "No experiment sessions yet. Ask the agent to run init_experiment." : "Connecting to the experiment feed…"}
+            </div>
+          ) : (
+            <SessionPanel session={session} now={now} />
+          )}
+          {actionError !== null ? <div className="ar-note">⚠ {actionError}</div> : null}
+        </div>
+        {session !== undefined ? (
+          <div className="ar-actions">
+            {session.snapshot.running !== null ? (
+              <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop", session.snapshot.sessionId)}>
+                {busy === "stop" ? "Stopping…" : "Stop run"}
+              </button>
+            ) : null}
+            {session.snapshot.loop ? (
+              <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop", session.snapshot.sessionId)}>
+                {busy === "stop" ? "Stopping…" : "Stop loop"}
+              </button>
+            ) : (
+              <button type="button" className="ar-btn ar-good" disabled={busy !== null} onClick={() => void runAction("resume", session.snapshot.sessionId)}>
+                {busy === "resume" ? "Resuming…" : "Resume loop"}
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SessionPanel(props: { session: SessionView; tail?: string; now: number }): ReactNode {
+  const { session, now } = props;
+  const snapshot = session.snapshot;
+  const runs = [...snapshot.runs].reverse();
+  const kept = snapshot.runs.filter((entry) => entry.status === "keep");
+  return (
+    <>
+      <div className="ar-stats">
+        {statCell(
+          "Best",
+          snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–",
+          snapshot.bestMetric !== null ? "ar-good" : undefined,
+        )}
+        {statCell("Baseline", snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–")}
+        {statCell(
+          "Confidence",
+          snapshot.confidence !== null ? snapshot.confidence.toFixed(1) + "×" : "–",
+          snapshot.confidence !== null && snapshot.confidence >= 2 ? "ar-good" : snapshot.confidence !== null && snapshot.confidence < 1 ? "ar-warn" : undefined,
+        )}
+        {statCell(
+          "Runs",
+          String(snapshot.runs.length) + (snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""),
+        )}
+      </div>
+      <div className="ar-note">
+        {snapshot.metricName}
+        {snapshot.bestDirection === "lower" ? " ↓ better" : " ↑ better"} · segment {snapshot.currentSegment} · {snapshot.workDir}
+      </div>
+      <RunningCard snapshot={snapshot} tail={session.tail} now={now} />
+      {runs.length === 0 ? (
+        <div className="ar-empty">No logged experiments yet in this segment.</div>
+      ) : (
+        <div className="ar-runs">
+          {runs.map((entry) => (
+            <RunRow key={String(entry.segment) + ":" + String(entry.run)} snapshot={snapshot} entry={entry} now={now} />
+          ))}
+        </div>
+      )}
+      {kept.length > 0 ? (
+        <div className="ar-note">
+          {kept.length} kept · best {formatNum(snapshot.bestMetric ?? 0, snapshot.metricUnit)} vs baseline {snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// better-sidebar tab
+// ---------------------------------------------------------------------------
+
+export interface SidebarTabViewProps {
+  store: AutoresearchClientStore;
+  /** Conversation session id from the sidebar scope; null = show any. */
+  scopeId: string;
+}
+
+/** dsh-better-sidebar tab body: the full dashboard for one conversation. */
+export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
+  const { store } = props;
+  const view = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const [now, setNow] = useState(() => Date.now());
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const holdRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const release = store.hold();
+    holdRef.current = release;
+    return () => {
+      holdRef.current = null;
+      release();
+    };
+  }, [store]);
+
+  const session =
+    view.sessions.find((item) => item.snapshot.sessionId === props.scopeId) ?? view.sessions[0];
+  const live = session !== undefined && session.snapshot.running !== null;
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [live]);
+
+  if (session === undefined) {
+    return (
+      <div className="ar-root ar-tabroot">
+        <div className="ar-empty">
+          {view.subscribed
+            ? "No experiment sessions yet. Ask the agent to run init_experiment."
+            : "Connecting to the experiment feed…"}
+        </div>
+      </div>
+    );
+  }
+
+  const headline = loopState(session.snapshot);
+  const runAction = async (kind: "stop" | "resume"): Promise<void> => {
+    setBusy(kind);
+    setActionError(null);
+    const result =
+      kind === "stop"
+        ? await store.stopExperiment(session.snapshot.sessionId)
+        : await store.resumeExperiment(session.snapshot.sessionId);
+    setBusy(null);
+    if (!result.ok) setActionError(result.error ?? "action failed");
+  };
+
+  return (
+    <div className="ar-root ar-tabroot">
+      <div className="ar-tabhead">
+        <StatusDot state={headline.state} />
+        <div className="ar-head-main">
+          <div className="ar-title">{session.snapshot.name}</div>
+          <div className="ar-subtitle">
+            {headline.label}
+            {view.subscribed ? "" : " · reconnecting"}
+            {session.snapshot.loopStopReason !== null ? " · " + session.snapshot.loopStopReason : ""}
+          </div>
+        </div>
+      </div>
+      <SessionPanel session={session} now={now} />
+      {actionError !== null ? <div className="ar-note">⚠ {actionError}</div> : null}
+      <div className="ar-actions ar-tabfoot">
+        {session.snapshot.running !== null ? (
+          <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop")}>
+            {busy === "stop" ? "Stopping…" : "Stop run"}
+          </button>
+        ) : null}
+        {session.snapshot.loop ? (
+          <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop")}>
+            {busy === "stop" ? "Stopping…" : "Stop loop"}
+          </button>
+        ) : (
+          <button type="button" className="ar-btn ar-good" disabled={busy !== null} onClick={() => void runAction("resume")}>
+            {busy === "resume" ? "Resuming…" : "Resume loop"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Toolviews
+// ---------------------------------------------------------------------------
+
+const RUN_CHIP: Record<string, { label: string; cls: string }> = {
+  passed: { label: "PASS", cls: "ar-keep" },
+  failed: { label: "FAIL", cls: "ar-crash" },
+  timeout: { label: "TIMEOUT", cls: "ar-discard" },
+  aborted: { label: "ABORTED", cls: "ar-discard" },
+  checks_timeout: { label: "CHECKS ⏰", cls: "ar-checks" },
+  checks_failed: { label: "CHECKS ✗", cls: "ar-checks" },
+  unknown: { label: "RUN", cls: "ar-checks" },
+};
+
+/** run_experiment toolview: status chip, parsed metric chips, tail. */
+export function RunToolView(props: { text: string; running: boolean; command: string | null }): ReactNode {
+  const model = parseRunText(props.text);
+  const chip = RUN_CHIP[model.kind] ?? RUN_CHIP.unknown;
+  const summary = model.headline !== "" ? model.headline : props.running ? "running…" : "";
+  return (
+    <div className="ar-tool" data-tool="run_experiment" data-state={props.running ? "running" : model.kind}>
+      <div className="ar-tool-head">
+        <StatusDot state={props.running ? "running" : model.kind === "passed" ? "done" : model.kind === "unknown" ? "off" : "error"} />
+        <span className="ar-tool-title">run_experiment</span>
+        <span className="ar-tool-summary">{summary}</span>
+      </div>
+      <div className="ar-tool-body">
+        {props.running && props.command !== null ? <div className="ar-running-cmd">{props.command}</div> : null}
+        {model.durationSeconds !== null ? <div className="ar-line">⏱ {formatElapsed(model.durationSeconds)}{model.exitCode !== null ? <span className="ar-dim"> · exit {String(model.exitCode)}</span> : null}</div> : null}
+        {model.bestLine !== null ? <div className="ar-line ar-dim">{model.bestLine}</div> : null}
+        {model.parsed.length > 0 ? (
+          <div className="ar-chiprow">
+            {model.parsed.map((metric) => (
+              <span key={metric.name} className={"ar-chip " + (metric.name === model.primaryName ? "ar-keep" : "ar-checks")}>
+                {metric.name}={String(metric.value)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {model.tail !== "" ? (
+          <details className="ar-tool-details">
+            <summary>{props.running ? "Live output" : model.truncated ? "Output (truncated)" : "Output"}</summary>
+            <div className="ar-tail">{model.tail}</div>
+          </details>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** init_experiment toolview: what session/metric was set up. */
+export function InitToolView(props: { text: string; args: Record<string, unknown> | null }): ReactNode {
+  const model = parseInitText(props.text);
+  const args = props.args ?? {};
+  const metricName = typeof args.metric_name === "string" ? args.metric_name : null;
+  const direction = typeof args.direction === "string" ? args.direction : "lower";
+  const unit = typeof args.metric_unit === "string" ? args.metric_unit : "";
+  const name = model.name ?? (typeof args.name === "string" ? args.name : null);
+  return (
+    <div className="ar-tool">
+      <div className="ar-tool-head">
+        <StatusDot state={model.ok ? "done" : "error"} />
+        <span className="ar-tool-title">init_experiment</span>
+        <span className="ar-tool-summary">{model.ok ? "session initialized" : "init failed"}</span>
+      </div>
+      <div className="ar-tool-body">
+        {name !== null ? <div className="ar-line">🔬 {name}</div> : null}
+        {metricName !== null ? (
+          <div className="ar-line">
+            📊 {metricName}
+            {unit !== "" ? unit : ""} <span className="ar-dim">({direction} is better)</span>
+          </div>
+        ) : null}
+        {!model.ok ? <div className="ar-line">{model.error}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/** log_experiment toolview: verdict, delta, confidence, git. */
+export function LogToolView(props: { text: string }): ReactNode {
+  const model = parseLogText(props.text);
+  return (
+    <div className="ar-tool">
+      <div className="ar-tool-head">
+        <StatusDot state={model.status === "keep" ? "done" : model.status === "unknown" ? "off" : "error"} />
+        <span className="ar-tool-title">log_experiment</span>
+        <span className="ar-tool-summary">
+          {model.run !== null ? "#" + String(model.run) + " " : ""}
+          {model.status}
+        </span>
+      </div>
+      <div className="ar-tool-body">
+        <div className="ar-chiprow">
+          <Chip status={model.status === "unknown" ? "crash" : model.status} />
+          {model.description !== "" ? <span className="ar-line">{model.description}</span> : null}
+        </div>
+        {model.baselineLine !== null ? (
+          <div className="ar-line ar-dim">
+            {model.baselineLine.replace(model.deltaLine !== null ? " | " + model.deltaLine : "", "")}
+            {model.deltaLine !== null ? <span className="ar-git"> · this: {model.deltaLine}</span> : null}
+          </div>
+        ) : null}
+        {model.secondaryLine !== null ? <div className="ar-line ar-dim">{model.secondaryLine}</div> : null}
+        {model.confidenceLine !== null ? (
+          <div className={"ar-line" + (model.confidence !== null && model.confidence >= 2 ? "" : " ar-dim")}>{model.confidenceLine}</div>
+        ) : null}
+        {model.gitLine !== null ? <div className="ar-git">{model.gitLine}</div> : null}
+        {model.limitReached ? <div className="ar-line">🛑 Segment limit reached — loop stopped.</div> : null}
+      </div>
+    </div>
+  );
+}
