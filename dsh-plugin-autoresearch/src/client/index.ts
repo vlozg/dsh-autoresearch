@@ -46,20 +46,22 @@ const TAB_ID = "autoresearch:dashboard";
  * The overlay reads it through useSyncExternalStore and flips without a
  * remount when the sidebar plugin (un)loads.
  */
+let sidebarActive = false;
+const sidebarListeners = new Set<() => void>();
 const sidebarModeStore = {
-  active: false,
-  listeners: new Set<() => void>(),
-  getSnapshot(): boolean {
-    return this.active;
+  // Closure-based: these methods are passed to useSyncExternalStore as bare
+  // references, so a `this`-dependent shape would crash in the browser.
+  getSnapshot: (): boolean => sidebarActive,
+  subscribe: (listener: () => void): (() => void) => {
+    sidebarListeners.add(listener);
+    return () => {
+      sidebarListeners.delete(listener);
+    };
   },
-  subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  },
-  set(next: boolean): void {
-    if (this.active === next) return;
-    this.active = next;
-    for (const listener of [...this.listeners]) listener();
+  set: (next: boolean): void => {
+    if (sidebarActive === next) return;
+    sidebarActive = next;
+    for (const listener of [...sidebarListeners]) listener();
   },
 };
 
@@ -183,10 +185,14 @@ export function apply(ctx: ClientContext): void {
       const activeId = state?.sessionId;
       if (activeId === undefined) return;
       const visible = store.getSnapshot().sessions.some((item) => item.snapshot.sessionId === activeId);
-      if (visible && !previousVisible && (service.isTabEnabled?.(TAB_ID) ?? true)) {
+      // Flip the flag BEFORE openTab: openTab synchronously re-enters
+      // better-sidebar's notify loop, which re-invokes this callback; a
+      // post-call assignment would recurse until the stack overflows.
+      const firstVisible = visible && !previousVisible;
+      previousVisible = visible;
+      if (firstVisible && (service.isTabEnabled?.(TAB_ID) ?? true)) {
         service.openTab({ type: TAB_ID });
       }
-      previousVisible = visible;
     };
     evaluate();
     const unsubscribeStore = store.subscribe(evaluate);

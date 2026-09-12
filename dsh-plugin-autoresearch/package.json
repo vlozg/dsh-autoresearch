@@ -72,15 +72,14 @@
     "plugin": {
       "host": {
         "entry": "./lib/index.mjs"
-      },
-      "client": {
-        "entry": "./lib/client.cjs",
-        "platform": "web",
-        "inject": [
-          "@deepseek-ai/dsh-client-ui-tool",
-          "@deepseek-ai/dsh-client-ui-layout"
-        ]
       }
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
     }
   }
 }
