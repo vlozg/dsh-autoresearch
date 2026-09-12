@@ -1,0 +1,66 @@
+{
+  "name": "dsh-plugin-autoresearch",
+  "version": "0.1.0",
+  "description": "Autonomous experiment loop (try → benchmark → keep/discard → repeat) with a rich dashboard sidebar for DSH.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["dsh", "dsh-plugin", "autoresearch"],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.mts",
+      "import": "./lib/index.mjs"
+    },
+    "./client": "./lib/client.cjs"
+  },
+  "main": "./lib/index.mjs",
+  "files": ["lib", "README.md", "cordis.patch.yml"],
+  "scripts": {
+    "build": "tsdown",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "selfcheck": "vitest run tests/engine.selfcheck.test.ts",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^22.20.2",
+    "@types/react": "^18.3.1",
+    "react": "^18.3.1",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "dsh": {
+    "plugin": {
+      "host": { "entry": "./lib/index.mjs" },
+      "client": { "entry": "./lib/client.cjs", "inject": ["@deepseek-ai/dsh-client-ui-tool", "@deepseek-ai/dsh-client-web-react"] }
+    }
+  },
+  "dsh.bundle.patch": {
+    "cordis": {
+      "insert": [
+        { "id": "autoresearch", "name": "dsh-plugin-autoresearch" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+- insert:
+    - id: autoresearch
+      # Must be the package name — the loader imports this specifier.
+      name: dsh-plugin-autoresearch

@@ -81,7 +81,7 @@ fall back to a floating `shell.overlay` card when the sidebar plugin is absent.
 |---|---|
 | extension widget / `/autoresearch dashboard` | **better-sidebar tab** (live SSE) + floating overlay fallback |
 | `/autoresearch export` (browser dashboard) | sidebar tab replaces it (optionally keep an HTML export later) |
-| auto-resume `sendUserMessage(followUp)` | **DSH goal continuation**: the create-skill instructs the agent to `create_goal` for the run ("loop until N experiments / converged") so the harness auto-continues rounds; host-side steer as a possible later add |
+| auto-resume `sendUserMessage(followUp)` | **plugin-side idle injection (pi-style)** — DECIDED: do NOT use DSH goals. Goals let the model self-terminate by marking the goal complete, but autoresearch loops on hard problems whose metric may never reach a perfect score; the loop must not be terminable by the model. Host listens for `agent/status: idle` and delivers a custom resume user message via `agent.followup(createUserMessage(...))` with pi's guards (turn limit, consecutive-failure limit, debounce window) |
 | skills (autoresearch-create) | plugin-registered skill via the skill seam |
 | toolviews (terminal widget) | keyed `tool.call.toolview` cards for run/log_experiment in the chat |
 | hooks → steer | same `.auto/hooks` contract; stdout goes back as tool-result text (no cross-turn steer needed in DSH's loop) |
@@ -126,6 +126,11 @@ tsdown.config.ts      two-face build
 
 ### Sidebar tab UX ("Autoresearch", single-instance, badge = running/last status)
 
+**Requirement (user): the tab must be UI-rich and phone-viewable.** pi's CLI UI was the
+pain point — the user had to open raw `.auto/` files to see data. The sidebar tab is the
+product: everything readable from the phone (status, table, chart, confidence, controls)
+lives in the tab, not in terminal widgets.
+
 - Header row: name · metric (unit, direction) · segment · baseline/best · confidence pill
   (green ≥2.0×, yellow 1–2×, red <1× — same thresholds as pi).
 - Sparkline of metric over runs (hand-rolled SVG, zero deps) with keep/discard/crash markers.
@@ -144,8 +149,7 @@ tsdown.config.ts      two-face build
 
 ### Risks / open points
 
-- Auto-resume seam: confirm whether a host plugin can inject a user/steer message into a session;
-  otherwise rely on goal continuation (already DSH-native, likely enough).
+- ~~Auto-resume seam~~ RESOLVED: `ReactLoopAgent.followup(userMessage)` + idle-status listener (verified against the goal-round-driver). Loop mode (on/off) is plugin-side state; the injected message carries `{kind:'plugin', plugin:'autoresearch', form:'notice'}` source.
 - Tool long-calls: confirm tool timeout policy for minutes-long `run_experiment`
   (tool-call-timeout-policy package exists; bsk precedent suggests OK).
 - Client face bundle: keep deps zero (hand-rolled SVG chart, no codemirror/recharts).
