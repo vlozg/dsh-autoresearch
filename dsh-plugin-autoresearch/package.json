@@ -66,6 +66,9 @@
     "vitest": "^4.1.11"
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "plugin": {
       "host": {
         "entry": "./lib/index.mjs"
@@ -78,16 +81,6 @@
           "@deepseek-ai/dsh-client-ui-layout"
         ]
       }
-    }
-  },
-  "dsh.bundle.patch": {
-    "cordis": {
-      "insert": [
-        {
-          "id": "autoresearch",
-          "name": "dsh-plugin-autoresearch"
-        }
-      ]
     }
   }
 }

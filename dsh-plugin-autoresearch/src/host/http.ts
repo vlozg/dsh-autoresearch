@@ -89,7 +89,9 @@ function sendJson(res: ServerResponse, status: number, value: unknown): void {
 }
 
 function statePayload(req: IncomingMessage, res: ServerResponse, service: ExperimentService): void {
-  if (!fenceRejected(req, res)) return;
+  // fenceRejected is true when the request was already answered (403); only
+  // then may this handler return without sending the snapshot payload.
+  if (fenceRejected(req, res)) return;
   const url = new URL(req.url ?? "/autoresearch/state", "http://" + (req.headers.host ?? "localhost"));
   const sessionId = url.searchParams.get("sessionId");
   const snapshots = service
@@ -165,7 +167,11 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
 
   const dashboardAction = (action: "stop" | "resume") =>
     async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-      if (req.method !== "POST" || fenceRejected(req, res)) return;
+      if (req.method !== "POST") {
+        sendJson(res, 405, { error: "POST required" });
+        return;
+      }
+      if (fenceRejected(req, res)) return;
       let sessionId: string | undefined;
       try {
         const body = await readBody(req);
