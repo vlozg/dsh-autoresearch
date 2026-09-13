@@ -39,3 +39,42 @@ export function splitRunText(desc: string): { title: string; finding: string } {
   const title = cut > 32 ? text.slice(0, cut) : text.slice(0, 72);
   return { title, finding: text.slice(title.length).replace(/^[\s,;:\u2013\u2014-]+/, "") };
 }
+
+const KEY_EXPANSIONS: Record<string, string> = {
+  attr: "attribute",
+  attrs: "attributes",
+  cfg: "config",
+  err: "errors",
+  errs: "errors",
+  cnt: "count",
+  pct: "percent",
+  avg: "average",
+  doc: "document",
+  docs: "documents",
+  num: "number",
+  len: "length",
+  src: "source",
+  dest: "destination",
+  id: "ID",
+  ids: "IDs",
+  url: "URL",
+  urls: "URLs",
+  api: "API",
+  llm: "LLM",
+};
+
+/** Turn a logged metric key like "attr_precision" into a readable label. */
+export function humanizeMetricKey(key: string): string {
+  const spaced = key.replace(/_(or|vs|and)_/g, " / ").replace(/[_\-.]+/g, " ").trim();
+  if (spaced === "") return key;
+  return spaced
+    .split(/\s+/)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      const expanded = KEY_EXPANSIONS[lower];
+      if (expanded !== undefined) return expanded.charAt(0).toUpperCase() + expanded.slice(1);
+      if (word.length <= 3 && word === word.toUpperCase()) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}

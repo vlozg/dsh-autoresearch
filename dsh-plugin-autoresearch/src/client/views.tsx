@@ -6,7 +6,7 @@
  */
 
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { formatAgo, formatElapsed, formatNum, splitRunText } from "./format";
+import { formatAgo, formatElapsed, formatNum, humanizeMetricKey, splitRunText } from "./format";
 import { parseInitText, parseLogText, parseRunText } from "./parse";
 import {
   type AutoresearchClientStore,
@@ -187,7 +187,7 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
     const value = entry.metrics[def.name];
     if (typeof value === "number" && Number.isFinite(value)) pairs.push({ name: def.name, unit: def.unit, value });
   }
-  const visible = showAll ? pairs : pairs.slice(0, 4);
+  const visible = showAll ? pairs : pairs.slice(0, 6);
   return (
     <div className={"ar-run" + (open ? " ar-open" : "")}>
       <button
@@ -207,44 +207,50 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
       {open ? null : (
         <div className="ar-run-desc" onClick={() => setOpen(true)}>
           <span className="ar-run-title">{parts.title}</span>
-          {parts.finding !== "" ? <span className="ar-run-finding">{parts.finding}</span> : null}
         </div>
       )}
       {open ? (
         <div className="ar-run-detail">
-          {parts.finding !== "" ? (
-            <>
-              <div className="ar-run-detail-title">{parts.title}</div>
-              <div className="ar-run-detail-desc">{parts.finding}</div>
-            </>
-          ) : (
-            <div className="ar-run-detail-desc">{entry.description}</div>
-          )}
+          <div className="ar-run-detail-title">{parts.title}</div>
+          {parts.finding !== "" ? <div className="ar-run-detail-desc">{parts.finding}</div> : null}
           {pairs.length > 0 ? (
             <div className="ar-run-keys">
               <div className="ar-run-keys-h">Key metrics</div>
-              {visible.map((m) => (
-                <div key={m.name} className="ar-run-detail-row">
-                  <span className="ar-run-detail-k">{m.name}</span>
-                  <span className="ar-run-detail-v">{formatNum(m.value, m.unit)}</span>
+              <div className="ar-run-keys-grid">
+                {visible.map((m) => (
+                  <div key={m.name} className="ar-run-kv">
+                    <span className="ar-run-kv-k">{humanizeMetricKey(m.name)}</span>
+                    <span className="ar-run-kv-v">{formatNum(m.value, m.unit)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="ar-run-keys-foot">
+                {pairs.length > 6 ? (
+                  <button type="button" className={"ar-run-all" + (showAll ? " ar-on" : "")} onClick={() => setShowAll((prev) => !prev)}>
+                    <IconChevron />
+                    {showAll ? "Show fewer metrics" : "Show all metrics"}
+                  </button>
+                ) : <span />}
+                <div className="ar-run-acts">
+                  <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+                    <IconDiff /> View diff
+                  </button>
+                  <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+                    <IconLogs /> Logs
+                  </button>
                 </div>
-              ))}
-              {pairs.length > 4 ? (
-                <button type="button" className={"ar-run-all" + (showAll ? " ar-on" : "")} onClick={() => setShowAll((prev) => !prev)}>
-                  <IconChevron />
-                  {showAll ? "Show fewer metrics" : "Show all metrics"}
-                </button>
-              ) : null}
+              </div>
             </div>
-          ) : null}
-          <div className="ar-run-acts">
-            <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
-              <IconDiff /> View diff
-            </button>
-            <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
-              <IconLogs /> Logs
-            </button>
-          </div>
+          ) : (
+            <div className="ar-run-acts">
+              <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+                <IconDiff /> View diff
+              </button>
+              <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+                <IconLogs /> Logs
+              </button>
+            </div>
+          )}
           <div className="ar-run-foot">
             {[
               entry.commit !== "" ? entry.commit.slice(0, 7) : null,
