@@ -12,7 +12,9 @@ import type { ToolCallViewProps } from "@deepseek-ai/dsh-client-ui-tool/client";
 import { type ReactNode, createElement } from "react";
 import "./ar.nomodule.css";
 import { AutoresearchClientStore, type EventSourceLike } from "./store";
-import { DashboardEntry, InitToolView, LogToolView, RunToolView, SidebarTabView } from "./views";
+import { DashboardEntry } from "./panel";
+import { SidebarTabView } from "./tab";
+import { InitToolView, LogToolView, RunToolView } from "./toolviews";
 
 /** Required services: the slot registry (toolviews + overlay seat). */
 export const inject = ["slots"];
