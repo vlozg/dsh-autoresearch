@@ -37,21 +37,43 @@ function confidenceClass(confidence: number | null | undefined): string {
 const subscribeNever = (): (() => void) => () => {};
 const snapshotNever = (): boolean => false;
 
-function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): string | null {
-  const earlier = snapshot.runs.filter((other) => other.run < entry.run && other.status === "keep");
-  if (earlier.length === 0) return null;
-  const baseline = earlier[earlier.length - 1].metric;
-  if (baseline === 0 || !Number.isFinite(baseline)) return null;
-  const delta = entry.metric - baseline;
-  const pct = ((delta / baseline) * 100).toFixed(1);
-  const sign = delta > 0 ? "+" : "";
-  const better = snapshot.bestDirection === "lower" ? delta < 0 : delta > 0;
-  return sign + pct + "%" + (better ? " ▼" : " ▲");
+interface RunDelta {
+  label: string;
+  good: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Past-session detection
-// ---------------------------------------------------------------------------
+/** Delta vs the best kept result before this run: "+10.4% worse" / "-2.8% better". */
+function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): RunDelta | null {
+  const earlier = snapshot.runs.filter((other) => other.run < entry.run && other.status === "keep");
+  let best: number | null = null;
+  for (const other of earlier) {
+    if (other.metric <= 0 || !Number.isFinite(other.metric)) continue;
+    if (best === null || (snapshot.bestDirection === "lower" ? other.metric < best : other.metric > best)) {
+      best = other.metric;
+    }
+  }
+  if (best === null || best === 0 || entry.metric <= 0 || !Number.isFinite(entry.metric)) return null;
+  const delta = entry.metric - best;
+  const pct = Math.abs((delta / best) * 100).toFixed(1);
+  const worse = snapshot.bestDirection === "lower" ? delta > 0 : delta < 0;
+  return { label: (delta > 0 ? "+" : "\u2212") + pct + "% " + (worse ? "worse" : "better"), good: !worse };
+}
+
+/** Short scan title + remainder finding from a free-text run description. */
+function splitRunText(desc: string): { title: string; finding: string } {
+  const text = desc.trim();
+  if (text.length <= 72) return { title: text, finding: "" };
+  const cut = text.lastIndexOf(" ", 72);
+  const title = cut > 32 ? text.slice(0, cut) : text.slice(0, 72);
+  return { title, finding: text.slice(title.length).replace(/^[\s,;:\u2013\u2014-]+/, "") };
+}
+
+function loopState(snapshot: ExperimentSnapshot): { state: string; label: string } {
+  if (snapshot.running !== null) return { state: "running", label: snapshot.running.phase === "checks" ? "checking" : "running" };
+  if (snapshot.loop) return { state: "live", label: "loop on" };
+  if (snapshot.loopStopReason !== null) return { state: "idle", label: "loop off" };
+  return { state: "off", label: "idle" };
+}
 
 /** "Detect past autoresearch sessions" button + discovered-session listing. */
 function DetectPanel(props: { store: AutoresearchClientStore; view: AutoresearchView; sessionId?: string }): ReactNode {
@@ -92,31 +114,19 @@ function DetectPanel(props: { store: AutoresearchClientStore; view: Autoresearch
   );
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard
-// ---------------------------------------------------------------------------
-
-function loopState(snapshot: ExperimentSnapshot): { state: string; label: string } {
-  if (snapshot.running !== null) return { state: "running", label: snapshot.running.phase === "checks" ? "checking" : "running" };
-  if (snapshot.loop) return { state: "live", label: "loop on" };
-  if (snapshot.loopStopReason !== null) return { state: "idle", label: "loop off" };
-  return { state: "off", label: "idle" };
-}
-
-function statCell(label: string, value: string, modifier?: string): ReactNode {
-  return (
-    <div className="ar-stat">
-      <div className="ar-stat-k">{label}</div>
-      <div className={"ar-stat-v" + (modifier !== undefined ? " " + modifier : "")}>{value}</div>
-    </div>
-  );
-}
-
-function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: number }): ReactNode {
-  const { snapshot, entry, now } = props;
+function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): ReactNode {
+  const { snapshot, entry } = props;
   const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const delta = bestDelta(snapshot, entry);
   const conf = entry.confidence;
+  const parts = splitRunText(entry.description);
+  const pairs: { name: string; unit: string; value: number }[] = [];
+  for (const def of snapshot.secondaryMetrics) {
+    const value = entry.metrics[def.name];
+    if (typeof value === "number" && Number.isFinite(value)) pairs.push({ name: def.name, unit: def.unit, value });
+  }
+  const visible = showAll ? pairs : pairs.slice(0, 4);
   return (
     <div className={"ar-run" + (open ? " ar-open" : "")}>
       <button
@@ -129,32 +139,45 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: num
         <Chip status={entry.status} />
         <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
         {delta !== null
-          ? <span className={"ar-run-delta" + (delta.indexOf("\u25BC") >= 0 ? " ar-good-stat" : "")}>{delta}</span>
+          ? <span className={"ar-run-delta " + (delta.good ? "ar-good-stat" : "ar-bad-stat")}>{delta.label}</span>
           : <span className="ar-run-delta" />}
-        <span className="ar-run-side">
-          {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}×</span> : null}
-          <span className="ar-run-meta">{formatAgo(entry.timestamp, now)}</span>
-        </span>
-        <span className="ar-run-chev" aria-hidden="true">{open ? "\u25BE" : "\u25B8"}</span>
+        <span className="ar-run-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
-      <div className="ar-run-desc" onClick={() => setOpen((prev) => !prev)}>{entry.description}</div>
+      {open ? null : (
+        <div className="ar-run-desc" onClick={() => setOpen(true)}>
+          <span className="ar-run-title">{parts.title}</span>
+          {parts.finding !== "" ? <span className="ar-run-finding">{parts.finding}</span> : null}
+        </div>
+      )}
       {open ? (
         <div className="ar-run-detail">
           <div className="ar-run-detail-desc">{entry.description}</div>
-          {snapshot.secondaryMetrics.map((def) => {
-            const value = entry.metrics[def.name];
-            if (typeof value !== "number" || !Number.isFinite(value)) return null;
-            return (
-              <div key={def.name} className="ar-run-detail-row">
-                <span className="ar-run-detail-k">{def.name}</span>
-                <span className="ar-run-detail-v">{formatNum(value, def.unit)}</span>
-              </div>
-            );
-          })}
+          {pairs.length > 0 ? (
+            <div className="ar-run-keys">
+              <div className="ar-run-keys-h">Key metrics</div>
+              {visible.map((m) => (
+                <div key={m.name} className="ar-run-detail-row">
+                  <span className="ar-run-detail-k">{m.name}</span>
+                  <span className="ar-run-detail-v">{formatNum(m.value, m.unit)}</span>
+                </div>
+              ))}
+              {pairs.length > 4 ? (
+                <button type="button" className="ar-run-all" onClick={() => setShowAll((prev) => !prev)}>
+                  {showAll ? "Show fewer metrics" : "Show all metrics (" + String(pairs.length) + ")"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="ar-run-detail-row">
             <span className="ar-run-detail-k">segment</span>
             <span className="ar-run-detail-v">{entry.segment}</span>
           </div>
+          {conf !== null ? (
+            <div className="ar-run-detail-row">
+              <span className="ar-run-detail-k">confidence</span>
+              <span className={"ar-run-detail-v" + (conf >= 2 ? " ar-good-stat" : "")}>{conf.toFixed(1)}× vs segment noise</span>
+            </div>
+          ) : null}
           <div className="ar-run-detail-row">
             <span className="ar-run-detail-k">time</span>
             <span className="ar-run-detail-v">{new Date(entry.timestamp).toLocaleString()}</span>
@@ -162,7 +185,7 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: num
           {entry.commit !== "" ? (
             <div className="ar-run-detail-row">
               <span className="ar-run-detail-k">commit</span>
-              <span className="ar-run-detail-v">{entry.commit}</span>
+              <span className="ar-run-detail-v ar-mono">{entry.commit}</span>
             </div>
           ) : null}
         </div>
@@ -289,17 +312,20 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
           <StatusDot state={headline.state} />
           <div className="ar-head-main">
             <div className="ar-title">{session !== undefined ? session.snapshot.name : "Autoresearch"}</div>
-            <div className="ar-subtitle">
-              {headline.label}
-              {view.subscribed ? "" : " · reconnecting"}
-              {session !== undefined && session.snapshot.loopStopReason !== null ? " · " + session.snapshot.loopStopReason : ""}
-            </div>
+            {view.subscribed ? (
+              session !== undefined && session.snapshot.loopStopReason !== null
+                ? <div className="ar-subtitle">{session.snapshot.loopStopReason}</div>
+                : null
+            ) : (
+              <div className="ar-subtitle">reconnecting…</div>
+            )}
           </div>
           <button type="button" className="ar-close" aria-label="Collapse dashboard" onClick={() => setExpanded(false)}>
             ×
           </button>
         </div>
         <div className="ar-body">
+          {view.subscribed ? null : <div className="ar-connwarn">Feed disconnected — retrying…</div>}
           {session === undefined ? (
             <>
               <div className="ar-empty">
@@ -318,10 +344,9 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
               <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop", session.snapshot.sessionId)}>
                 {busy === "stop" ? "Stopping…" : "Stop run"}
               </button>
-            ) : null}
-            {session.snapshot.loop ? (
-              <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop", session.snapshot.sessionId)}>
-                {busy === "stop" ? "Stopping…" : "Stop loop"}
+            ) : session.snapshot.loop ? (
+              <button type="button" className="ar-btn" disabled={busy !== null} title="Stop the loop — resume any time with Resume loop" onClick={() => void runAction("stop", session.snapshot.sessionId)}>
+                {busy === "stop" ? "Pausing…" : "Pause loop"}
               </button>
             ) : (
               <button type="button" className="ar-btn ar-good" disabled={busy !== null} onClick={() => void runAction("resume", session.snapshot.sessionId)}>
@@ -335,47 +360,143 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
   );
 }
 
+const RUN_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "keep", label: "Kept" },
+  { id: "discard", label: "Discarded" },
+  { id: "errors", label: "Errors" },
+] as const;
+type RunFilter = (typeof RUN_FILTERS)[number]["id"];
+
 function SessionPanel(props: { session: SessionView; tail?: string; now: number }): ReactNode {
   const { session, now } = props;
   const snapshot = session.snapshot;
+  const [filter, setFilter] = useState<RunFilter>("all");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [confInfo, setConfInfo] = useState(false);
+  const dir = snapshot.bestDirection;
   const runs = [...snapshot.runs].reverse();
   const kept = snapshot.runs.filter((entry) => entry.status === "keep");
+  const workName = snapshot.workDir.split("/").filter(Boolean).pop() ?? snapshot.workDir;
+  const lastRun = snapshot.runs.length > 0 ? snapshot.runs[snapshot.runs.length - 1].timestamp : null;
+  const state = loopState(snapshot);
+  const pillLabel = state.state === "running" ? "Running" : state.state === "live" ? "Loop active" : state.state === "idle" ? "Loop paused" : "Idle";
+  const filtered = runs.filter((entry) => {
+    if (filter === "keep" && entry.status !== "keep") return false;
+    if (filter === "discard" && entry.status !== "discard") return false;
+    if (filter === "errors" && entry.status !== "crash" && entry.status !== "checks_failed") return false;
+    const needle = search.trim().toLowerCase();
+    if (needle !== "" && !entry.description.toLowerCase().includes(needle)) return false;
+    return true;
+  });
+
+  let bestGap: ReactNode = null;
+  if (snapshot.bestMetric !== null && snapshot.baseline !== null && snapshot.baseline !== 0) {
+    const pct = ((snapshot.bestMetric - snapshot.baseline) / snapshot.baseline) * 100;
+    const improved = dir === "lower" ? pct < 0 : pct > 0;
+    if (improved && Math.abs(pct) >= 0.05) {
+      bestGap = (
+        <div className="ar-hero-sub ar-good-stat">
+          {Math.abs(pct).toFixed(1)}% {dir === "lower" ? "below" : "above"} baseline
+        </div>
+      );
+    }
+  }
+
   return (
     <>
-      <div className="ar-stats">
-        {statCell(
-          "Best",
-          snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–",
-          snapshot.bestMetric !== null ? "ar-good" : undefined,
-        )}
-        {statCell("Baseline", snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–")}
-        {statCell(
-          "Confidence",
-          snapshot.confidence !== null ? snapshot.confidence.toFixed(1) + "×" : "–",
-          snapshot.confidence !== null && snapshot.confidence >= 2 ? "ar-good" : snapshot.confidence !== null && snapshot.confidence < 1 ? "ar-warn" : undefined,
-        )}
-        {statCell(
-          "Runs",
-          String(snapshot.runs.length) + (snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""),
-        )}
+      <div className="ar-sessionrow">
+        <div className="ar-badges">
+          <span className={"ar-pill ar-pill-" + state.state}>{pillLabel}</span>
+          <span className="ar-pill">
+            {String(snapshot.runs.length)}
+            {snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""} runs
+          </span>
+        </div>
+        <div className="ar-updated">{lastRun !== null ? "updated " + formatAgo(lastRun, now) : ""}</div>
       </div>
-      <div className="ar-note">
-        {snapshot.metricName}
-        {snapshot.bestDirection === "lower" ? " ↓ better" : " ↑ better"} · segment {snapshot.currentSegment} · {snapshot.workDir}
+      <div className="ar-hero">
+        <div className="ar-hero-top">
+          <span className="ar-hero-name">{snapshot.metricName}</span>
+          <span className="ar-hero-dir">{dir === "lower" ? "Lower is better ↓" : "Higher is better ↑"}</span>
+        </div>
+        <div className="ar-hero-grid">
+          <div className="ar-hero-cell">
+            <div className="ar-hero-k">Best</div>
+            <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
+              {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
+            </div>
+            {bestGap}
+          </div>
+          <div className="ar-hero-cell">
+            <div className="ar-hero-k" title="First run in the current segment">Baseline</div>
+            <div className="ar-hero-v">{snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}</div>
+          </div>
+          <div className="ar-hero-cell">
+            <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
+              Confidence ⓘ
+            </button>
+            <div className={"ar-hero-v" + (snapshot.confidence !== null && snapshot.confidence >= 2 ? " ar-good" : snapshot.confidence !== null && snapshot.confidence < 1 ? " ar-warn" : "")}>
+              {snapshot.confidence !== null ? snapshot.confidence.toFixed(1) + "×" : "–"}
+            </div>
+          </div>
+        </div>
+        {confInfo ? (
+          <div className="ar-hero-note">
+            Best kept improvement over the segment baseline, measured in multiples of this segment's typical
+            run-to-run spread (MAD). ≥2× means the gain is at least twice the noise floor.
+          </div>
+        ) : null}
       </div>
       <RunningCard snapshot={snapshot} tail={session.tail} now={now} />
-      {runs.length === 0 ? (
-        <div className="ar-empty">No logged experiments yet in this segment.</div>
+      <div className="ar-expbar">
+        <div className="ar-exp-h">
+          Experiments <span className="ar-exp-count">{String(snapshot.runs.length)}</span>
+        </div>
+        <div className="ar-seg" role="group" aria-label="Filter runs">
+          {RUN_FILTERS.map((f) => (
+            <button key={f.id} type="button" className={"ar-segbtn" + (filter === f.id ? " ar-on" : "")} onClick={() => setFilter(f.id)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={"ar-searchbtn" + (searchOpen ? " ar-on" : "")}
+          aria-label="Search run descriptions"
+          onClick={() => { setSearchOpen((prev) => !prev); if (searchOpen) setSearch(""); }}
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <line x1="10.6" y1="10.6" x2="14" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      {searchOpen ? (
+        <input
+          className="ar-search"
+          type="search"
+          placeholder="Filter by description…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      ) : null}
+      <div className="ar-note">Δ vs best · {dir === "lower" ? "positive is worse" : "positive is better"}</div>
+      {filtered.length === 0 ? (
+        <div className="ar-empty">
+          {snapshot.runs.length === 0 ? "No logged experiments yet in this segment." : "No runs match this filter."}
+        </div>
       ) : (
         <div className="ar-runs">
-          {runs.map((entry) => (
-            <RunRow key={String(entry.segment) + ":" + String(entry.run)} snapshot={snapshot} entry={entry} now={now} />
+          {filtered.map((entry) => (
+            <RunRow key={String(entry.segment) + ":" + String(entry.run)} snapshot={snapshot} entry={entry} />
           ))}
         </div>
       )}
       {kept.length > 0 ? (
         <div className="ar-note">
-          {kept.length} kept · best {formatNum(snapshot.bestMetric ?? 0, snapshot.metricUnit)} vs baseline {snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}
+          {kept.length} kept of {snapshot.runs.length} runs · best {formatNum(snapshot.bestMetric ?? 0, snapshot.metricUnit)}
         </div>
       ) : null}
     </>
@@ -418,6 +539,11 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [live]);
+  useEffect(() => {
+    if (live) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, [live]);
 
   if (session === undefined) {
     return (
@@ -450,13 +576,16 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
         <StatusDot state={headline.state} />
         <div className="ar-head-main">
           <div className="ar-title">{session.snapshot.name}</div>
-          <div className="ar-subtitle">
-            {headline.label}
-            {view.subscribed ? "" : " · reconnecting"}
-            {session.snapshot.loopStopReason !== null ? " · " + session.snapshot.loopStopReason : ""}
-          </div>
+          {view.subscribed ? (
+            session.snapshot.loopStopReason !== null
+              ? <div className="ar-subtitle">{session.snapshot.loopStopReason}</div>
+              : null
+          ) : (
+            <div className="ar-subtitle">reconnecting…</div>
+          )}
         </div>
       </div>
+      {view.subscribed ? null : <div className="ar-connwarn">Feed disconnected — retrying…</div>}
       <SessionPanel session={session} now={now} />
       <DetectPanel store={store} view={view} sessionId={props.scopeId} />
       {actionError !== null ? <div className="ar-note">⚠ {actionError}</div> : null}
@@ -465,10 +594,9 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
           <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop")}>
             {busy === "stop" ? "Stopping…" : "Stop run"}
           </button>
-        ) : null}
-        {session.snapshot.loop ? (
-          <button type="button" className="ar-btn ar-danger" disabled={busy !== null} onClick={() => void runAction("stop")}>
-            {busy === "stop" ? "Stopping…" : "Stop loop"}
+        ) : session.snapshot.loop ? (
+          <button type="button" className="ar-btn" disabled={busy !== null} title="Stop the loop — resume any time with Resume loop" onClick={() => void runAction("stop")}>
+            {busy === "stop" ? "Pausing…" : "Pause loop"}
           </button>
         ) : (
           <button type="button" className="ar-btn ar-good" disabled={busy !== null} onClick={() => void runAction("resume")}>
