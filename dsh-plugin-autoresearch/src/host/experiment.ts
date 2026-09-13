@@ -71,6 +71,8 @@ export interface ExperimentSnapshot {
   metricName: string;
   metricUnit: string;
   bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
   currentSegment: number;
   maxExperiments: number | null;
   baseline: number | null;
@@ -90,6 +92,8 @@ export interface InitParams {
   metric_name: string;
   metric_unit?: string;
   direction?: "lower" | "higher";
+  metric_label?: string;
+  objective_label?: string;
 }
 
 export interface RunParams {
@@ -105,6 +109,8 @@ export interface LogParams {
   description: string;
   metrics?: Record<string, number>;
   force?: boolean;
+  title?: string;
+  summary?: string;
   asi?: Record<string, unknown>;
 }
 
@@ -196,6 +202,8 @@ export class ExperimentService {
       metricName: s.metricName,
       metricUnit: s.metricUnit,
       bestDirection: s.bestDirection,
+      metricLabel: s.metricLabel,
+      objectiveLabel: s.objectiveLabel,
       currentSegment: s.currentSegment,
       maxExperiments: runtime.maxExperiments,
       baseline: findBaselineMetric(s.results, s.currentSegment),
@@ -334,6 +342,8 @@ export class ExperimentService {
           metricName: snapshot.metricName,
           metricUnit: snapshot.metricUnit,
           bestDirection: snapshot.bestDirection,
+          metricLabel: snapshot.metricLabel,
+          objectiveLabel: snapshot.objectiveLabel,
           currentSegment: snapshot.currentSegment,
           runs: snapshot.runs.length,
           bestMetric: snapshot.bestMetric,
@@ -405,6 +415,8 @@ export class ExperimentService {
       metricName: params.metric_name,
       ...(params.metric_unit !== undefined ? { metricUnit: params.metric_unit } : {}),
       ...(params.direction !== undefined ? { bestDirection: params.direction } : {}),
+      ...(params.metric_label !== undefined ? { metricLabel: params.metric_label } : {}),
+      ...(params.objective_label !== undefined ? { objectiveLabel: params.objective_label } : {}),
     };
 
     const jsonlPath = sessionFilePath(runtime.workDir, "log");
@@ -600,7 +612,7 @@ export class ExperimentService {
         text += ` ${name}=${formatNum(value, def?.unit ?? "")}`;
       }
       text += `\nUse these values directly in log_experiment (metric: ${parsedPrimary ?? "?"}, metrics: {${secondary.map(([k, v]) => `\"${k}\": ${v}`).join(", ")}})\n`;
-      text += 'Describe the run as "Short title: what happened and why".\n';
+      text += 'When logging, pass title (max 70 chars) and summary (max 180 chars) plus description carrying the full evidence.\n';
     }
 
     text += `\n${llmTruncation.content}`;
@@ -687,6 +699,8 @@ export class ExperimentService {
       metrics: { ...secondaryMetrics },
       status: params.status,
       description: params.description,
+      ...(typeof params.title === "string" && params.title !== "" ? { title: params.title } : {}),
+      ...(typeof params.summary === "string" && params.summary !== "" ? { summary: params.summary } : {}),
       timestamp: Date.now(),
       segment: state.currentSegment,
       confidence: null,

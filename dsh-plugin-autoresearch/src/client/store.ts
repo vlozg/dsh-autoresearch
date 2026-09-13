@@ -12,6 +12,8 @@ export interface RunEntry {
   metrics: Record<string, number>;
   status: "keep" | "discard" | "crash" | "checks_failed";
   description: string;
+  title?: string;
+  summary?: string;
   timestamp: number;
   segment: number;
   confidence: number | null;
@@ -36,6 +38,8 @@ export interface ExperimentSnapshot {
   metricName: string;
   metricUnit: string;
   bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
   currentSegment: number;
   maxExperiments: number | null;
   baseline: number | null;
@@ -83,6 +87,8 @@ export interface DetectedSession {
   metricName: string;
   metricUnit: string;
   bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
   currentSegment: number;
   runs: number;
   bestMetric: number | null;
@@ -126,6 +132,8 @@ function parseDetectResult(value: unknown): DetectResult | null {
         metricName: typeof entry.metricName === "string" ? entry.metricName : "metric",
         metricUnit: typeof entry.metricUnit === "string" ? entry.metricUnit : "",
         bestDirection: entry.bestDirection === "higher" ? "higher" : "lower",
+        metricLabel: typeof entry.metricLabel === "string" ? entry.metricLabel : null,
+        objectiveLabel: typeof entry.objectiveLabel === "string" ? entry.objectiveLabel : null,
         currentSegment: typeof entry.currentSegment === "number" ? entry.currentSegment : 0,
         runs: typeof entry.runs === "number" ? entry.runs : 0,
         bestMetric: typeof entry.bestMetric === "number" ? entry.bestMetric : null,

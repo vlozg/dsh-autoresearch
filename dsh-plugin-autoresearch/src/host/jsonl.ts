@@ -12,6 +12,8 @@ export interface ConfigHeader {
   metricName?: string;
   metricUnit?: string;
   bestDirection?: "lower" | "higher";
+  metricLabel?: string;
+  objectiveLabel?: string;
 }
 
 export interface RunEntry {
@@ -21,6 +23,8 @@ export interface RunEntry {
   metrics: Record<string, number>;
   status: "keep" | "discard" | "crash" | "checks_failed";
   description: string;
+  title?: string;
+  summary?: string;
   timestamp: number;
   segment: number;
   confidence: number | null;
@@ -37,6 +41,8 @@ export interface ReconstructedState {
   metricName: string;
   metricUnit: string;
   bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
   currentSegment: number;
   results: RunEntry[];
   secondaryMetrics: MetricDef[];
@@ -90,6 +96,8 @@ function reconstructedState(): ReconstructedState {
     metricName: DEFAULT_METRIC_NAME,
     metricUnit: DEFAULT_METRIC_UNIT,
     bestDirection: DEFAULT_DIRECTION,
+    metricLabel: null,
+    objectiveLabel: null,
     currentSegment: 0,
     results: [],
     secondaryMetrics: [],
@@ -100,6 +108,8 @@ function updateConfig(state: ReconstructedState, entry: ConfigHeader): void {
   if (typeof entry.name === "string") state.name = entry.name;
   if (typeof entry.metricName === "string") state.metricName = entry.metricName;
   if (typeof entry.metricUnit === "string") state.metricUnit = entry.metricUnit;
+  if (typeof entry.metricLabel === "string") state.metricLabel = entry.metricLabel;
+  if (typeof entry.objectiveLabel === "string") state.objectiveLabel = entry.objectiveLabel;
   state.bestDirection = entry.bestDirection === "higher" ? "higher" : DEFAULT_DIRECTION;
 }
 
@@ -117,6 +127,8 @@ function runFrom(entry: JsonlEntry, segment: number): RunEntry {
     metrics: metricMapFrom(entry.metrics),
     status: statusFrom(entry.status),
     description: typeof entry.description === "string" ? entry.description : "",
+    ...(typeof entry.title === "string" && entry.title !== "" ? { title: entry.title } : {}),
+    ...(typeof entry.summary === "string" && entry.summary !== "" ? { summary: entry.summary } : {}),
     timestamp: typeof entry.timestamp === "number" ? entry.timestamp : 0,
     segment,
     confidence: typeof entry.confidence === "number" ? entry.confidence : null,

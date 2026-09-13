@@ -72,6 +72,8 @@ describe("summarizeWorkdir", () => {
       metricName: "total_ms",
       metricUnit: "ms",
       bestDirection: "lower",
+      metricLabel: null,
+      objectiveLabel: null,
       currentSegment: 0,
       runs: 2,
       bestMetric: 90,
@@ -157,8 +159,8 @@ describe("plugin inject contract", () => {
 
 describe("byRecency", () => {
   it("sorts newest first, runless sessions last", () => {
-    const a: DetectedSession = { sessionId: null, workDir: "/a", name: "a", metricName: "m", metricUnit: "", bestDirection: "lower", currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 100 };
-    const b: DetectedSession = { sessionId: null, workDir: "/b", name: "b", metricName: "m", metricUnit: "", bestDirection: "lower", currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 200 };
+    const a: DetectedSession = { sessionId: null, workDir: "/a", name: "a", metricName: "m", metricUnit: "", bestDirection: "lower", metricLabel: null, objectiveLabel: null, currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 100 };
+    const b: DetectedSession = { sessionId: null, workDir: "/b", name: "b", metricName: "m", metricUnit: "", bestDirection: "lower", metricLabel: null, objectiveLabel: null, currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 200 };
     const none: DetectedSession = { ...a, workDir: "/n", lastTimestamp: null };
     expect([a, b].sort(byRecency).map((s) => s.workDir)).toEqual(["/b", "/a"]);
     expect([none, a].sort(byRecency).map((s) => s.workDir)).toEqual(["/a", "/n"]);

@@ -44,6 +44,14 @@ export function buildAutoResearchTools(service: ExperimentService) {
         type: "string",
         description: 'Unit for the primary metric. Use "us", "ms", "s", "kb", "mb", or "" for unitless. Default: ""',
       },
+      metric_label: {
+        type: "string",
+        description: 'Readable display name for the metric in the dashboard (e.g. "Attribute precision"). Falls back to metric_name',
+      },
+      objective_label: {
+        type: "string",
+        description: 'Plain-language objective line shown under the metric (e.g. "Lower = harder"). Falls back to "Lower is better"',
+      },
       direction: {
         type: "string",
         enum: ["lower", "higher"],
@@ -115,7 +123,15 @@ export function buildAutoResearchTools(service: ExperimentService) {
         type: "string",
         required: true,
         description:
-          'What this experiment tried, written as "Short title: what happened and why" — the sidebar shows the title and finding separately',
+          'Full evidence for this run. When title and summary are provided the sidebar uses those for display; keep the complete findings here',
+      },
+      title: {
+        type: "string",
+        description: "Short display title for this run (max 70 chars). Preferred over deriving one from description",
+      },
+      summary: {
+        type: "string",
+        description: "One-line main observed result (max 180 chars). Shown in the run's expanded card",
       },
       metrics: {
         type: "object",

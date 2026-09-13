@@ -35,9 +35,8 @@ measurable metric (latency, size, accuracy, score...).
    benchmark (exit 0 = pass). A failed check is logged as checks_failed.
 4. Optionally create \`.auto/ideas.md\`: a backlog of hypotheses to try.
 5. Call \`init_experiment\` with the session name, metric name, unit, direction.
-6. Run the benchmark with \`run_experiment\`, then \`log_experiment\` (description as
-   \`Short title: what happened and why\`).
-
+6. Run the benchmark with \`run_experiment\`, then \`log_experiment\` (title, summary,
+   and description carrying the full evidence).
 ## Loop rules
 
 - After \`log_experiment\`, immediately start the next iteration. NEVER STOP.
@@ -47,8 +46,8 @@ measurable metric (latency, size, accuracy, score...).
 - Keep the working tree committed before editing: the revert restores the last
   kept state.
 - Log discarded/crashed runs too — every run is data.
-- Write each description as \`Short title: what happened and why\` — the sidebar
-  splits on the first \`:\\u00a0\` for its title/finding rows.
+- Pass \`title\` (max 70 chars) and \`summary\` (max 180 chars) to log_experiment — the
+  sidebar uses them for display; keep the complete evidence in description.
 - Persist hypotheses in \`.auto/ideas.md\` and diagnostics in the asi parameter
   ({"hypothesis": "...", "rollback_reason": "...", "next_action_hint": "..."})
   so reasoning survives reverts and compaction.

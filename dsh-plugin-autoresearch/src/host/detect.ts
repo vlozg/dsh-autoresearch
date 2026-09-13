@@ -20,6 +20,8 @@ export interface DetectedSession {
   metricName: string;
   metricUnit: string;
   bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
   currentSegment: number;
   runs: number;
   bestMetric: number | null;
@@ -107,6 +109,8 @@ export function summarizeWorkdir(workDir: string): DetectedSession | null {
     metricName: state.metricName,
     metricUnit: state.metricUnit,
     bestDirection: state.bestDirection,
+    metricLabel: state.metricLabel,
+    objectiveLabel: state.objectiveLabel,
     currentSegment: state.currentSegment,
     runs: state.results.length,
     bestMetric: best,

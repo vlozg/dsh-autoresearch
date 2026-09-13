@@ -253,10 +253,18 @@
   padding: 14px 16px;
 }
 .ar-run.ar-open + .ar-run { border-top: 0; }
+.ar-seglabel {
+  margin: 12px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #64748b;
+}
 .ar-run-head {
   display: grid;
-  grid-template-columns: auto auto 1fr 18px;
-  grid-template-areas: "no chip . chev" "metric delta . chev";
+  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  grid-template-areas: "no chip chev" "metrics metrics chev";
   align-items: center;
   gap: 8px;
   row-gap: 5px;
@@ -285,8 +293,9 @@
 .ar-chip.ar-discard { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .ar-chip.ar-crash { background: rgba(239, 68, 68, 0.16); color: #f87171; }
 .ar-chip.ar-checks { background: rgba(249, 115, 22, 0.16); color: #fb923c; }
-.ar-run-metric { grid-area: metric; justify-self: start; font-weight: 700; font-size: 17px; color: #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ar-run-delta { grid-area: delta; justify-self: start; font-size: 13px; font-weight: 500; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-metricrow { grid-area: metrics; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ar-run-metric { flex: none; font-weight: 700; font-size: 17px; color: #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ar-run-delta { flex: 0 1 auto; min-width: 0; font-size: 13px; font-weight: 500; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-run-delta.ar-bad-stat { color: rgba(248, 113, 113, 0.55); }
 .ar-run-delta.ar-good-stat { color: rgba(74, 222, 128, 0.6); }
 .ar-run-chev { grid-area: chev; align-self: center; font-size: 14px; color: #8ea0b5; text-align: center; }

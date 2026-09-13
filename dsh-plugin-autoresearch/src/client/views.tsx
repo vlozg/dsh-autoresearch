@@ -5,7 +5,7 @@
  * tail, the run table, and stop/resume controls.
  */
 
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { formatAgo, formatElapsed, formatNum, humanizeMetricKey, splitRunText } from "./format";
 import { parseInitText, parseLogText, parseRunText } from "./parse";
 import {
@@ -87,7 +87,7 @@ interface RunDelta {
 
 /** Delta vs the best kept result before this run: "+10.4% worse" / "-2.8% better". */
 function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): RunDelta | null {
-  const earlier = snapshot.runs.filter((other) => other.run < entry.run && other.status === "keep");
+  const earlier = snapshot.runs.filter((other) => other.run < entry.run && other.segment === entry.segment && other.status === "keep");
   let best: number | null = null;
   for (const other of earlier) {
     if (other.metric <= 0 || !Number.isFinite(other.metric)) continue;
@@ -132,7 +132,7 @@ function SessionBadges(props: { snapshot: ExperimentSnapshot }): ReactNode {
 /** "workdir · metric · Segment n · updated Xm ago" line under the session title. */
 function sessionSubtitle(snapshot: ExperimentSnapshot, now: number): string {
   const workName = snapshot.workDir.split("/").filter(Boolean).pop() ?? snapshot.workDir;
-  const parts = [workName, snapshot.metricName, "Segment " + String(snapshot.currentSegment)];
+  const parts = [workName, snapshot.metricLabel ?? snapshot.metricName, "Segment " + String(snapshot.currentSegment)];
   const lastRun = snapshot.runs.length > 0 ? snapshot.runs[snapshot.runs.length - 1].timestamp : null;
   if (lastRun !== null) parts.push("updated " + formatAgo(lastRun, now));
   if (snapshot.loopStopReason !== null) parts.push(snapshot.loopStopReason);
@@ -185,6 +185,11 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
   const delta = bestDelta(snapshot, entry);
   const conf = entry.confidence;
   const parts = splitRunText(entry.description);
+  const hasTitle = entry.title !== undefined && entry.title !== "";
+  const title = hasTitle ? entry.title : parts.title;
+  const finding = entry.summary !== undefined && entry.summary !== ""
+    ? entry.summary
+    : hasTitle ? entry.description : parts.finding;
   const pairs: { name: string; unit: string; value: number }[] = [];
   for (const def of snapshot.secondaryMetrics) {
     const value = entry.metrics[def.name];
@@ -201,21 +206,23 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
       >
         <span className="ar-run-no">#{entry.run}</span>
         <Chip status={entry.status} />
-        <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
-        {delta !== null
-          ? <span className={"ar-run-delta " + (delta.good ? "ar-good-stat" : "ar-bad-stat")}>{delta.label}</span>
-          : <span className="ar-run-delta" />}
+        <span className="ar-run-metricrow">
+          <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
+          {delta !== null
+            ? <span className={"ar-run-delta " + (delta.good ? "ar-good-stat" : "ar-bad-stat")}>{delta.label}</span>
+            : null}
+        </span>
         <span className="ar-run-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
       {open ? null : (
         <div className="ar-run-desc" onClick={() => setOpen(true)}>
-          <span className="ar-run-title">{parts.title}</span>
+          <span className="ar-run-title">{title}</span>
         </div>
       )}
       {open ? (
         <div className="ar-run-detail">
-          <div className="ar-run-detail-title">{parts.title}</div>
-          {parts.finding !== "" ? <div className="ar-run-detail-desc">{parts.finding}</div> : null}
+          <div className="ar-run-detail-title">{title}</div>
+          {finding !== "" ? <div className="ar-run-detail-desc">{finding}</div> : null}
           {pairs.length > 0 ? (
             <div className="ar-run-keys">
               <div className="ar-run-keys-h">Key metrics</div>
@@ -456,7 +463,8 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
     if (filter === "discard" && entry.status !== "discard") return false;
     if (filter === "errors" && entry.status !== "crash" && entry.status !== "checks_failed") return false;
     const needle = search.trim().toLowerCase();
-    if (needle !== "" && !entry.description.toLowerCase().includes(needle)) return false;
+    const hay = (entry.title ?? "") + " " + (entry.summary ?? "") + " " + entry.description;
+    if (needle !== "" && !hay.toLowerCase().includes(needle)) return false;
     return true;
   });
 
@@ -477,8 +485,8 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
     <>
       <div className="ar-hero">
         <div className="ar-hero-top">
-          <span className="ar-hero-name">{snapshot.metricName}</span>
-          <span className="ar-hero-dir">{dir === "lower" ? "Lower is better ↓" : "Higher is better ↑"}</span>
+          <span className="ar-hero-name">{snapshot.metricLabel ?? snapshot.metricName}</span>
+          <span className="ar-hero-dir">{snapshot.objectiveLabel ?? (dir === "lower" ? "Lower is better ↓" : "Higher is better ↑")}</span>
         </div>
         <div className="ar-hero-grid">
           <div className="ar-hero-cell ar-hero-main">
@@ -494,14 +502,16 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
             <div className="ar-hero-k" title="First run in the current segment">Baseline</div>
             <div className="ar-hero-v">{snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}</div>
           </div>
-          <div className="ar-hero-cell">
-            <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
-              Confidence ⓘ
-            </button>
-            <div className={"ar-hero-v" + (snapshot.confidence !== null && snapshot.confidence >= 2 ? " ar-good" : snapshot.confidence !== null && snapshot.confidence < 1 ? " ar-warn" : "")}>
-              {snapshot.confidence !== null ? snapshot.confidence.toFixed(1) + "×" : "–"}
+          {snapshot.confidence !== null ? (
+            <div className="ar-hero-cell">
+              <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
+                Confidence ⓘ
+              </button>
+              <div className={"ar-hero-v" + (snapshot.confidence >= 2 ? " ar-good" : snapshot.confidence < 1 ? " ar-warn" : "")}>
+                {snapshot.confidence.toFixed(1) + "×"}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
         {confInfo ? (
           <div className="ar-hero-note">
@@ -538,7 +548,7 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
         <input
           className="ar-search"
           type="search"
-          placeholder="Filter by description…"
+          placeholder="Filter runs…"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -550,9 +560,15 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
         </div>
       ) : (
         <div className="ar-runs">
-          {filtered.map((entry) => (
-            <RunRow key={String(entry.segment) + ":" + String(entry.run)} snapshot={snapshot} entry={entry} />
-          ))}
+          {filtered.map((entry, index) => {
+            const boundary = index > 0 && filtered[index - 1].segment !== entry.segment;
+            return (
+              <Fragment key={String(entry.segment) + ":" + String(entry.run)}>
+                {boundary ? <div className="ar-seglabel">Segment {String(entry.segment)}</div> : null}
+                <RunRow snapshot={snapshot} entry={entry} />
+              </Fragment>
+            );
+          })}
         </div>
       )}
       {kept.length > 0 ? (

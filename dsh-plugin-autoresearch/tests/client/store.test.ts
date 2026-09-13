@@ -20,6 +20,8 @@ function snapshotOf(overrides: Partial<ExperimentSnapshot> = {}): ExperimentSnap
     metricName: "total_us",
     metricUnit: "us",
     bestDirection: "lower",
+    metricLabel: null,
+    objectiveLabel: null,
     currentSegment: 1,
     maxExperiments: null,
     baseline: 100,
