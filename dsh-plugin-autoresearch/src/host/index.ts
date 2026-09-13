@@ -13,11 +13,11 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import Schema from "@deepseek-ai/schemastery";
-import { ExperimentService, type PluginConfig } from "./experiment";
-import { buildAutoResearchTools } from "./tools";
-import { AutoResumeInjector } from "./resume";
-import { registerAutoResearchHttp } from "./http";
-import { autoresearchCreateSkill } from "./skill";
+import { ExperimentService, type PluginConfig } from "./app/experiment-service";
+import { buildAutoResearchTools } from "./infra/tools";
+import { AutoResumeInjector } from "./infra/resume";
+import { registerAutoResearchHttp } from "./infra/http";
+import { autoresearchCreateSkill } from "./infra/skill";
 import { nodeServiceDeps } from "./adapters";
 
 export const name = "dsh-plugin-autoresearch";

@@ -4,20 +4,22 @@
  * first touch — the file is the source of truth), the running-experiment
  * handle, loop mode, and the SSE publisher the client dashboard consumes.
  *
- * Module layout: driven-side ports in ./app/ports (adapters under
- * ./adapters, wired by the host entry), contracts in ./experiment-types,
- * tool operation bodies in ./experiment-ops, past-session scan helpers in
- * ./detect. The three tools (tools.ts) delegate here; the auto-resume
- * injector (resume.ts) reads loop state and guards from here.
+ * Module layout: driven-side ports in ./ports (node adapters under
+ * ../adapters, wired by the host entry), contracts in ./contracts, tool
+ * operation bodies in ./init-experiment + ./run-experiment +
+ * ./log-experiment. The three tools (infra/tools.ts) delegate here; the
+ * auto-resume injector (infra/resume.ts) reads loop state and guards.
  */
 
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { Context } from "@deepseek-ai/cordis";
 import * as path from "node:path";
-import { byRecency, findAutoWorkdirs, summarizeWorkdir, SCAN_DEPTH } from "./detect";
-import type { DetectResult, DetectedSession, LogStore, ServiceDeps } from "./app/ports";
-import { bestMetric, computeConfidence, findBaselineMetric } from "./domain/metrics";
-import { initExperimentOp, runExperimentOp, logExperimentOp } from "./experiment-ops";
+import { byRecency, findAutoWorkdirs, summarizeWorkdir, SCAN_DEPTH } from "../adapters/fs-scanner";
+import type { DetectResult, DetectedSession, LogStore, ServiceDeps } from "./ports";
+import { bestMetric, computeConfidence, findBaselineMetric } from "../domain/metrics";
+import { initExperimentOp } from "./init-experiment";
+import { runExperimentOp } from "./run-experiment";
+import { logExperimentOp } from "./log-experiment";
 import type {
   AutoResearchEvent,
   ExperimentSnapshot,
@@ -27,9 +29,9 @@ import type {
   RunParams,
   SessionRuntime,
   ToolOutcome,
-} from "./experiment-types";
+} from "./contracts";
 
-export * from "./experiment-types";
+export * from "./contracts";
 
 export class ExperimentService {
   private runtimes = new Map<string, SessionRuntime>();

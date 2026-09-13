@@ -4,7 +4,7 @@
  * no runtime dependencies beyond the domain model.
  */
 
-import type { ExperimentState, MetricDef, RunEntry } from "./domain/model";
+import type { ExperimentState, MetricDef, RunEntry } from "../domain/model";
 
 export type AutoResearchEvent =
   | { kind: "state"; sessionId: string; snapshot: ExperimentSnapshot }
@@ -96,4 +96,28 @@ export interface PluginConfig {
   defaultChecksTimeoutSeconds: number;
   /** Turn off pi's same-cwd auto-activation (log exists + same cwd → loop on). */
   autoActivateLoop: boolean;
+}
+
+/** One discovered (past or live) autoresearch session. */
+export interface DetectedSession {
+  /** Live agent/session id when the workdir belongs to an open conversation. */
+  sessionId: string | null;
+  workDir: string;
+  name: string;
+  metricName: string;
+  metricUnit: string;
+  bestDirection: "lower" | "higher";
+  metricLabel: string | null;
+  objectiveLabel: string | null;
+  currentSegment: number;
+  runs: number;
+  bestMetric: number | null;
+  lastTimestamp: number | null;
+}
+
+export interface DetectResult {
+  /** Workdirs now attached to a live conversation (cards appear via SSE). */
+  attached: DetectedSession[];
+  /** Past sessions with no live conversation in their workdir. */
+  unattached: DetectedSession[];
 }

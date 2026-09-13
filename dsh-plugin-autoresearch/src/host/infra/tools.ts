@@ -12,7 +12,7 @@
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import type { ContentBlock } from "@deepseek-ai/dsh-llm";
-import type { ExperimentService } from "./experiment";
+import type { ExperimentService } from "../app/experiment-service";
 
 /** Model-facing text render shared by all three tools. */
 const render = (_args: unknown, value: unknown): ContentBlock[] => [{

@@ -1,39 +1,20 @@
 /**
- * Past-session detection: scan candidate workdirs for an existing `.auto/`
- * contract (created by this plugin or by pi-autoresearch) and summarize each
- * hit from `.auto/log.jsonl`. The scan is shallow and dependency-aware — it
- * never descends into `.auto/` itself, hidden dirs, or dependency/build
- * folders, so it is safe to run on demand from the dashboard.
+ * Past-session scan adapter: walk candidate workdirs for an existing
+ * `.auto/` contract (created by this plugin or by pi-autoresearch) and
+ * summarize each hit from `.auto/log.jsonl`. The scan is shallow and
+ * dependency-aware — it never descends into `.auto/` itself, hidden dirs,
+ * or dependency/build folders, so it is safe to run on demand from the
+ * dashboard. Session shapes live in the app contracts.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sessionFilePath } from "./adapters/fs-log-store";
-import { reconstructState } from "./adapters/jsonl";
 
-/** One discovered (past or live) autoresearch session. */
-export interface DetectedSession {
-  /** Live agent/session id when the workdir belongs to an open conversation. */
-  sessionId: string | null;
-  workDir: string;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  bestDirection: "lower" | "higher";
-  metricLabel: string | null;
-  objectiveLabel: string | null;
-  currentSegment: number;
-  runs: number;
-  bestMetric: number | null;
-  lastTimestamp: number | null;
-}
+import type { DetectedSession } from "../app/contracts";
+import { sessionFilePath } from "./fs-log-store";
+import { reconstructState } from "./jsonl";
 
-export interface DetectResult {
-  /** Workdirs now attached to a live conversation (cards appear via SSE). */
-  attached: DetectedSession[];
-  /** Past sessions with no live conversation in their workdir. */
-  unattached: DetectedSession[];
-}
+export type { DetectedSession };
 
 /** How deep below a scan root the `.auto/` hunt descends. */
 export const SCAN_DEPTH = 2;

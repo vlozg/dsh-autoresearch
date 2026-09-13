@@ -4,7 +4,7 @@
  */
 
 import type { ServiceDeps } from "../app/ports";
-import { findAutoWorkdirs, summarizeWorkdir } from "../detect";
+import { findAutoWorkdirs, summarizeWorkdir } from "./fs-scanner";
 import { childRunner } from "./child-runner";
 import { fsLogStore } from "./fs-log-store";
 import { nodeGit } from "./node-git";

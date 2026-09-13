@@ -14,7 +14,7 @@ import {
   ExperimentService,
   type PluginConfig,
   type SessionRuntime,
-} from "../src/host/experiment";
+} from "../src/host/app/experiment-service";
 import { sessionFilePath } from "../src/host/adapters/fs-log-store";
 import { nodeServiceDeps } from "../src/host/adapters";
 

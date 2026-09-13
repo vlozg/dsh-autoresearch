@@ -13,7 +13,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
-import type { ExperimentService } from "./experiment";
+import type { ExperimentService } from "../app/experiment-service";
 
 /** Structural view of the dsh-host-webserver route seam. */
 export interface WebServerLike {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { registerAutoResearchHttp } from "../src/host/http";
+import { registerAutoResearchHttp } from "../src/host/infra/http";
 
 interface RecordedRequest {
   headers: Record<string, string>;

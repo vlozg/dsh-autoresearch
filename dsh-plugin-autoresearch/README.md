@@ -26,7 +26,12 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
 
 ## Layout
 
-- `src/host/` — plugin face: plugin wiring (`index.ts`), tool schemas (`tools.ts`), and the experiment engine split three ways — `experiment.ts` (service: runtimes + SSE), `experiment-ops.ts` (init/run/log operations), `experiment-types.ts` (contracts) — plus JSONL persistence (`jsonl.ts`), past-session detection (`detect.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`, `hooks.ts`), and helpers (`run.ts`, `truncate.ts`, `metrics.ts`, `git.ts`, `paths.ts`).
+- `src/host/` — plugin face, layered hexagonally (dependencies point inward):
+  - `domain/` — pure kernel: JSONL data model (`model.ts`), metric math (`metrics.ts`), gates (`rules.ts`), resume policy (`resume-policy.ts`).
+  - `app/` — the core: `ports.ts` (Clock, LogStore, GitVcs, CommandRunner, HookRunner, SessionScanner + truncation budgets), `contracts.ts` (tool params/outcomes, session shapes), `experiment-service.ts` (runtimes + SSE), and one file per tool operation (`init-experiment.ts`, `run-experiment.ts`, `log-experiment.ts`).
+  - `adapters/` — node implementations of the ports: `fs-log-store.ts` (`.auto/` paths + store), `jsonl.ts`, `node-git.ts`, `child-runner.ts`, `shell-hooks.ts`, `system-clock.ts`, `fs-scanner.ts` (past-session scan), `truncate.ts`; `index.ts` exports `nodeServiceDeps()`, the ready-made kit.
+  - `infra/` — DSH-facing edges: tool schemas (`tools.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`).
+  - `index.ts` — composition root: wires `nodeServiceDeps()` into the service.
 - `src/client/` — client face: SSE store (`store.ts`), overlay dashboard (`panel.tsx`), better-sidebar tab (`tab.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), shared atoms (`bits.tsx`), pure snapshot derivations (`derive.ts`), and text parsing/formatting (`parse.ts`, `format.ts`). Mount + registration in `index.ts`.
 - `tests/` — vitest suite (86 tests, 13 files), including direct coverage of the client's pure derivation layer.
 

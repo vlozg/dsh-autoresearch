@@ -7,7 +7,7 @@
  */
 
 import type { ExperimentState, JsonlEntry } from "../domain/model";
-import type { DetectResult, DetectedSession } from "../detect";
+import type { DetectResult, DetectedSession } from "./contracts";
 
 export type { DetectResult, DetectedSession };
 
