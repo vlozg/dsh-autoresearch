@@ -117,7 +117,10 @@ function SessionBadges(props: { snapshot: ExperimentSnapshot }): ReactNode {
   const pillLabel = state.state === "running" ? "Running" : state.state === "live" ? "Loop active" : state.state === "idle" ? "Loop paused" : "Idle";
   return (
     <div className="ar-badges">
-      <span className={"ar-pill ar-pill-" + state.state}>{pillLabel}</span>
+      <span className={"ar-pill ar-pill-" + state.state}>
+        <span className="ar-pilldot" aria-hidden="true" />
+        {pillLabel}
+      </span>
       <span className="ar-pill">
         {String(snapshot.runs.length)}
         {snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""} runs
@@ -382,7 +385,6 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
     <div className="ar-root">
       <div className="ar-panel" role="dialog" aria-label="autoresearch dashboard">
         <div className="ar-head">
-          <StatusDot state={headline.state} />
           <div className="ar-head-main">
             <div className="ar-title">{session !== undefined ? session.snapshot.name : "Autoresearch"}</div>
             {session !== undefined ? (
@@ -458,15 +460,16 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
     return true;
   });
 
-  let bestGapMain: ReactNode = null;
-  let bestGapBase: ReactNode = null;
+  let bestGap: ReactNode = null;
   if (snapshot.bestMetric !== null && snapshot.baseline !== null && snapshot.baseline !== 0) {
     const pct = ((snapshot.bestMetric - snapshot.baseline) / snapshot.baseline) * 100;
     const improved = dir === "lower" ? pct < 0 : pct > 0;
     if (improved && Math.abs(pct) >= 0.05) {
-      const gapText = Math.abs(pct).toFixed(1) + "% " + (dir === "lower" ? "below" : "above") + " baseline";
-      bestGapMain = <div className="ar-hero-sub ar-good-stat ar-hero-gap-main">{gapText}</div>;
-      bestGapBase = <div className="ar-hero-sub ar-good-stat ar-hero-gap-base">{gapText}</div>;
+      bestGap = (
+        <div className="ar-hero-sub ar-good-stat">
+          {Math.abs(pct).toFixed(1)}% {dir === "lower" ? "below" : "above"} baseline
+        </div>
+      );
     }
   }
 
@@ -479,19 +482,17 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
         </div>
         <div className="ar-hero-grid">
           <div className="ar-hero-cell ar-hero-main">
-            <div className="ar-hero-k">Best</div>
             <div className="ar-hero-bestrow">
               <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
                 {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
               </div>
               {snapshot.bestMetric !== null ? <span className="ar-hero-bestpill">Best</span> : null}
             </div>
-            {bestGapMain}
+            {bestGap}
           </div>
           <div className="ar-hero-cell">
             <div className="ar-hero-k" title="First run in the current segment">Baseline</div>
             <div className="ar-hero-v">{snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}</div>
-            {bestGapBase}
           </div>
           <div className="ar-hero-cell">
             <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
@@ -633,7 +634,6 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
   return (
     <div className="ar-root ar-tabroot">
       <div className="ar-tabhead">
-        <StatusDot state={headline.state} />
         <div className="ar-head-main">
           <div className="ar-title">{session.snapshot.name}</div>
           <div className="ar-subtitle">{view.subscribed ? sessionSubtitle(session.snapshot, now) : "reconnecting…"}</div>
