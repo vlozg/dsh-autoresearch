@@ -2,9 +2,9 @@
 
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { AutoresearchClientStore } from "./store";
-import { loopState, sessionSubtitle } from "./derive";
+import { loopState, sessionSubtitle } from "../../entities/derive";
 import { DetectPanel, SessionBadges, SessionPanel } from "./panel";
-import { IconPause, IconPlay, IconStop } from "./bits";
+import { IconPause, IconPlay, IconStop } from "../../shared/bits";
 
 export interface SidebarTabViewProps {
   store: AutoresearchClientStore;

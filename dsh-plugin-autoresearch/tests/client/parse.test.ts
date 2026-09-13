@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInitText, parseLogText, parseRunText } from "../../src/client/parse";
+import { parseInitText, parseLogText, parseRunText } from "../../src/client/entities/parse";
 
 const RUN_PASSED = [
   "✅ PASSED in 3.2s",

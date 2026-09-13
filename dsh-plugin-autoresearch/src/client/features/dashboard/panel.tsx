@@ -4,11 +4,11 @@
  */
 
 import { Fragment, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { formatAgo, formatNum } from "./format";
+import { formatAgo, formatNum } from "../../shared/format";
 import type { AutoresearchClientStore, AutoresearchView, ExperimentSnapshot, SessionView } from "./store";
-import { loopState, sessionSubtitle } from "./derive";
+import { loopState, sessionSubtitle } from "../../entities/derive";
 import { RunRow, RunningCard } from "./runrow";
-import { IconPause, IconPlay, IconStop, StatusDot } from "./bits";
+import { IconPause, IconPlay, IconStop, StatusDot } from "../../shared/bits";
 
 /** Right-aligned loop/run badges for the carrier header row. */
 export function SessionBadges(props: { snapshot: ExperimentSnapshot }): ReactNode {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitRunText } from "../src/client/format";
+import { splitRunText } from "../src/client/shared/format";
 
 describe("splitRunText", () => {
   it("splits on the recommended title: finding form", () => {

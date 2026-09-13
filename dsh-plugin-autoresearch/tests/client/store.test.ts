@@ -4,7 +4,7 @@ import {
   type AutoResearchEvent,
   type EventSourceLike,
   type ExperimentSnapshot,
-} from "../../src/client/store";
+} from "../../src/client/features/dashboard/store";
 
 interface FakeSource {
   listeners: Map<string, (event: { data: string }) => void>;

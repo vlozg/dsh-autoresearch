@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { formatElapsed, formatNum, humanizeMetricKey, splitRunText } from "./format";
+import { formatElapsed, formatNum, humanizeMetricKey, splitRunText } from "../../shared/format";
 import type { ExperimentSnapshot, RunEntry } from "./store";
-import { bestDelta } from "./derive";
-import { Chip, IconChevron, IconDiff, IconLogs, StatusDot } from "./bits";
+import { bestDelta } from "../../entities/derive";
+import { Chip, IconChevron, IconDiff, IconLogs, StatusDot } from "../../shared/bits";
 
 export function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): ReactNode {
   const { snapshot, entry } = props;

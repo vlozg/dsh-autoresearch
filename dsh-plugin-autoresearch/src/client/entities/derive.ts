@@ -3,8 +3,8 @@
  * keep so far, live loop state, and the session subtitle line.
  */
 
-import { formatAgo } from "./format";
-import type { ExperimentSnapshot, RunEntry } from "./store";
+import { formatAgo } from "../shared/format";
+import type { ExperimentSnapshot, RunEntry } from "../features/dashboard/store";
 
 export interface RunDelta {
   label: string;

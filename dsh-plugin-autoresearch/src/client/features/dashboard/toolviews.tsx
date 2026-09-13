@@ -4,9 +4,9 @@
  */
 
 import type { ReactNode } from "react";
-import { formatElapsed } from "./format";
-import { parseInitText, parseLogText, parseRunText } from "./parse";
-import { Chip, StatusDot } from "./bits";
+import { formatElapsed } from "../../shared/format";
+import { parseInitText, parseLogText, parseRunText } from "../../entities/parse";
+import { Chip, StatusDot } from "../../shared/bits";
 
 const RUN_CHIP: Record<string, { label: string; cls: string }> = {
   passed: { label: "PASS", cls: "ar-keep" },
