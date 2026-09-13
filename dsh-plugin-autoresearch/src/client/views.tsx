@@ -458,16 +458,15 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
     return true;
   });
 
-  let bestGap: ReactNode = null;
+  let bestGapMain: ReactNode = null;
+  let bestGapBase: ReactNode = null;
   if (snapshot.bestMetric !== null && snapshot.baseline !== null && snapshot.baseline !== 0) {
     const pct = ((snapshot.bestMetric - snapshot.baseline) / snapshot.baseline) * 100;
     const improved = dir === "lower" ? pct < 0 : pct > 0;
     if (improved && Math.abs(pct) >= 0.05) {
-      bestGap = (
-        <div className="ar-hero-sub ar-good-stat">
-          {Math.abs(pct).toFixed(1)}% {dir === "lower" ? "below" : "above"} baseline
-        </div>
-      );
+      const gapText = Math.abs(pct).toFixed(1) + "% " + (dir === "lower" ? "below" : "above") + " baseline";
+      bestGapMain = <div className="ar-hero-sub ar-good-stat ar-hero-gap-main">{gapText}</div>;
+      bestGapBase = <div className="ar-hero-sub ar-good-stat ar-hero-gap-base">{gapText}</div>;
     }
   }
 
@@ -481,14 +480,18 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
         <div className="ar-hero-grid">
           <div className="ar-hero-cell ar-hero-main">
             <div className="ar-hero-k">Best</div>
-            <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
-              {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
+            <div className="ar-hero-bestrow">
+              <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
+                {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
+              </div>
+              {snapshot.bestMetric !== null ? <span className="ar-hero-bestpill">Best</span> : null}
             </div>
+            {bestGapMain}
           </div>
           <div className="ar-hero-cell">
             <div className="ar-hero-k" title="First run in the current segment">Baseline</div>
             <div className="ar-hero-v">{snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}</div>
-            {bestGap}
+            {bestGapBase}
           </div>
           <div className="ar-hero-cell">
             <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
@@ -509,7 +512,7 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
       <RunningCard snapshot={snapshot} tail={session.tail} now={now} />
       <div className="ar-expbar">
         <div className="ar-exp-h">
-          Experiments <span className="ar-exp-count">{String(snapshot.runs.length)}</span>
+          Experiments <span className="ar-exp-count">{String(snapshot.runs.length)} runs</span>
         </div>
         <div className="ar-seg" role="group" aria-label="Filter runs">
           {RUN_FILTERS.map((f) => (
