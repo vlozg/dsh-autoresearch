@@ -5,34 +5,13 @@
  */
 
 import { spawn } from "node:child_process";
-import type { RunEntry } from "./jsonl";
-import { hookScriptPath } from "./paths";
+import { hookScriptPath } from "./fs-log-store";
 import { truncateAtBoundary } from "./truncate";
+import type { HookPayload, HookRunner, SessionSnapshot } from "../app/ports";
 
 const HOOK_TIMEOUT_MS = 30_000;
 const HOOK_MAX_BYTES = 8 * 1024;
 
-export interface SessionSnapshot {
-  metric_name: string;
-  metric_unit: string;
-  direction: "lower" | "higher";
-  baseline_metric: number | null;
-  best_metric: number | null;
-  run_count: number;
-  goal?: string;
-  workDir?: string;
-}
-
-export interface HookPayload {
-  event: "before" | "after";
-  cwd: string;
-  /** before only */
-  next_run?: number;
-  last_run?: Record<string, unknown>;
-  /** after only */
-  run_entry?: Record<string, unknown>;
-  session: SessionSnapshot;
-}
 
 /** Run one hook stage; returns stdout (truncated) as steer text, or null. */
 export function fireHook(payload: HookPayload): Promise<string | null> {
@@ -100,5 +79,6 @@ export function fireHook(payload: HookPayload): Promise<string | null> {
   });
 }
 
-/** Re-export for tools that want the raw entry type. */
-export type { RunEntry };
+
+/** Node spawn implementation of the HookRunner port. */
+export const shellHooks: HookRunner = { fire: fireHook };

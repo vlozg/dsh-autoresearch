@@ -7,7 +7,10 @@
 
 import { execFile } from "node:child_process";
 
-export const AUTO_DIR = ".auto";
+import type { GitVcs } from "../app/ports";
+
+import { AUTO_DIR } from "../domain/model";
+export { AUTO_DIR };
 
 /** Exact exclude globs from pi's revert script. */
 const REVERT_EXCLUDE_GLOBS = [
@@ -109,3 +112,6 @@ export async function gitCurrentCommit(workDir: string): Promise<string | null> 
   const r = await gitExec(workDir, ["rev-parse", "--short=7", "HEAD"], 5000);
   return r.code === 0 ? (r.stdout || "").trim() || null : null;
 }
+
+/** Node execFile implementation of the GitVcs port. */
+export const nodeGit: GitVcs = { autoCommit: gitAutoCommit, revert: gitRevert };

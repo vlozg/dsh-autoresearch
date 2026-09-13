@@ -12,41 +12,11 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { WriteStream } from "node:fs";
-import { truncateTail, type TruncateOptions, type TruncateResult } from "./truncate";
+import type { CommandRunner, RunCommandOptions, TimedRunResult } from "../app/ports";
+import { truncateTail } from "./truncate";
 
-export const DEFAULT_MAX_LINES = 40;
-export const DEFAULT_MAX_BYTES = 32 * 1024; // 32KB display budget
-export const LLM_MAX_LINES = 10;
-export const LLM_MAX_BYTES = 4 * 1024; // 4KB context budget
 
-export interface RunOutput {
-  exitCode: number | null;
-  killed: boolean;
-  output: string;
-  tempFilePath?: string;
-  actualTotalBytes: number;
-}
 
-export interface RunCommandOptions extends TruncateOptions {
-  workDir: string;
-  command: string;
-  /** Wall-clock timeout in ms (0 = no timeout). */
-  timeoutMs: number;
-  signal?: AbortSignal;
-  /** 1s progress callback (tail snapshot + elapsed). */
-  onUpdate?: (payload: { elapsedMs: number; tail: TruncateResult; fullOutputPath?: string }) => void;
-}
-
-export interface TimedRunResult {
-  exitCode: number | null;
-  killed: boolean;
-  /** Terminated because the caller's AbortSignal fired (not a timeout). */
-  aborted: boolean;
-  output: string;
-  tempFilePath?: string;
-  actualTotalBytes: number;
-  durationSeconds: number;
-}
 
 function killTree(pid: number): void {
   try {
@@ -195,3 +165,6 @@ export function runCommand(options: RunCommandOptions): Promise<TimedRunResult> 
     });
   });
 }
+
+/** Node child_process implementation of the CommandRunner port. */
+export const childRunner: CommandRunner = { run: runCommand };

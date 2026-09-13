@@ -17,10 +17,10 @@ import {
   type ConfigHeader,
   type ExperimentState,
   type JsonlEntry,
-} from "./domain/model";
+} from "../domain/model";
 
-export type { JsonlEntry, ConfigHeader, RunEntry, MetricDef } from "./domain/model";
-export { inferMetricUnit } from "./domain/model";
+export type { JsonlEntry, ConfigHeader, RunEntry, MetricDef } from "../domain/model";
+export { inferMetricUnit } from "../domain/model";
 
 export function parseJsonlEntry(line: string): JsonlEntry | null {
   try {

@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { truncateTail } from "../src/host/truncate";
-import { createTempFileAllocator, runCommand } from "../src/host/run";
+import { truncateTail } from "../src/host/adapters/truncate";
+import { createTempFileAllocator, runCommand } from "../src/host/adapters/child-runner";
 
 const workDir = mkdtempSync(path.join(tmpdir(), "ar-run-"));
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));

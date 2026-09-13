@@ -15,7 +15,8 @@ import {
   type PluginConfig,
   type SessionRuntime,
 } from "../src/host/experiment";
-import { sessionFilePath } from "../src/host/paths";
+import { sessionFilePath } from "../src/host/adapters/fs-log-store";
+import { nodeServiceDeps } from "../src/host/adapters";
 
 let project: string;
 const seen: string[] = [];
@@ -25,7 +26,7 @@ const service = new ExperimentService(stubCtx, {
   defaultExperimentTimeoutSeconds: 30,
   defaultChecksTimeoutSeconds: 30,
   autoActivateLoop: true,
-} as PluginConfig);
+} as PluginConfig, nodeServiceDeps());
 
 type ResolveArgs = Parameters<ExperimentService["resolveAgent"]>[0];
 const agentStub = (id: string): ResolveArgs =>

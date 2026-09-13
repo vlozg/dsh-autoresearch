@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { gitAutoCommit, gitCurrentCommit, gitRevert } from "../src/host/git";
+import { gitAutoCommit, gitCurrentCommit, gitRevert } from "../src/host/adapters/node-git";
 
 let repo: string;
 afterAll(() => rmSync(repo, { recursive: true, force: true }));

@@ -18,6 +18,7 @@ import { buildAutoResearchTools } from "./tools";
 import { AutoResumeInjector } from "./resume";
 import { registerAutoResearchHttp } from "./http";
 import { autoresearchCreateSkill } from "./skill";
+import { nodeServiceDeps } from "./adapters";
 
 export const name = "dsh-plugin-autoresearch";
 // "agents" must be declared here: the cordis context proxy throws
@@ -49,7 +50,7 @@ export function apply(ctx: Context, config: Partial<PluginConfig> = {}): void {
     autoActivateLoop: config.autoActivateLoop ?? true,
   };
 
-  const service = new ExperimentService(ctx, resolved);
+  const service = new ExperimentService(ctx, resolved, nodeServiceDeps());
 
   // --- tools -----------------------------------------------------------------
   const tools = buildAutoResearchTools(service);

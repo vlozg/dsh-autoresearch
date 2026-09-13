@@ -1,18 +1,22 @@
 /**
- * Session file path resolution (port of pi-autoresearch paths.ts).
+ * Filesystem-backed session storage adapter (fold of the former paths.ts):
+ * the `.auto/` directory layout, workdir validation/resolution, and the
+ * LogStore port implementation over it. JSONL framing lives in ./jsonl.
  *
  * All autoresearch session files live under a single `.auto/` subfolder at the
  * workdir root (one folder to preserve across reverts, gitignore, and cleanup).
- * The legacy flat `autoresearch.*` layout is not created by new sessions; it is
- * only read when present and no current-layout artifact exists.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export const AUTO_DIR = ".auto";
+import type { LogStore, SessionFileKind } from "../app/ports";
+import type { ExperimentState } from "../domain/model";
+import { AUTO_DIR } from "../domain/model";
+import { reconstructState, serializeEntry } from "./jsonl";
 
-export type SessionFileKind = "log" | "prompt" | "ideas" | "checks" | "measure" | "config";
+export { AUTO_DIR };
+export type { SessionFileKind };
 
 const SESSION_FILE_NAMES: Record<SessionFileKind, string> = {
   log: "log.jsonl",
@@ -105,3 +109,53 @@ export function resolveWorkDir(sessionCwd: string): string {
     ? config.workingDir
     : path.resolve(sessionCwd, config.workingDir);
 }
+
+/** Node fs implementation of the LogStore port over the `.auto/` layout. */
+export const fsLogStore: LogStore = {
+  sessionPath: sessionFilePath,
+
+  exists(workDir, kind) {
+    return fs.existsSync(sessionFilePath(workDir, kind));
+  },
+
+  readLog(workDir) {
+    try {
+      return fs.readFileSync(sessionFilePath(workDir, "log"), "utf-8");
+    } catch {
+      return null;
+    }
+  },
+
+  loadState(workDir): ExperimentState {
+    return reconstructState(fsLogStore.readLog(workDir) ?? "");
+  },
+
+  appendEntry(workDir, entry) {
+    const jsonlPath = sessionFilePath(workDir, "log");
+    try {
+      ensureParentDir(jsonlPath);
+      fs.appendFileSync(jsonlPath, serializeEntry(entry) + "\n");
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, path: jsonlPath, error: e instanceof Error ? e.message : String(e) };
+    }
+  },
+
+  writeRunLog(workDir, run, content) {
+    if (content.trim() === "") return undefined;
+    try {
+      ensureParentDir(runsDir(workDir));
+      const logPath = runLogPath(workDir, run);
+      fs.writeFileSync(logPath, content);
+      return logPath;
+    } catch {
+      return undefined;
+    }
+  },
+
+  canonicalPath,
+  samePath,
+  validateWorkDir,
+  resolveWorkDir,
+  readConfig,
+};

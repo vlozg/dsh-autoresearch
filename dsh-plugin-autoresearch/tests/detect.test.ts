@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ExperimentService, type PluginConfig } from "../src/host/experiment";
 import { byRecency, findAutoWorkdirs, summarizeWorkdir, type DetectedSession } from "../src/host/detect";
+import { nodeServiceDeps } from "../src/host/adapters";
 import { inject as pluginInject } from "../src/host/index";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
@@ -109,6 +110,7 @@ describe("ExperimentService.detect", () => {
     const service = new ExperimentService(
       { agents: { list: () => [agentIdle, agentA], get: (id: string) => (id === "a2" ? agentA : id === "idle" ? agentIdle : undefined) } } as never,
       CONFIG,
+      nodeServiceDeps(),
     );
 
     const result = service.detect();
@@ -142,7 +144,7 @@ describe("ExperimentService.detect", () => {
     const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-none-")));
     const solo = path.join(base, "empty");
     fs.mkdirSync(solo, { recursive: true });
-    const service = new ExperimentService({ agents: { list: () => [fakeAgent("solo", solo)] } } as never, CONFIG);
+    const service = new ExperimentService({ agents: { list: () => [fakeAgent("solo", solo)] } } as never, CONFIG, nodeServiceDeps());
     const result = service.detect();
     expect(result.attached).toEqual([]);
     expect(result.unattached).toEqual([]);

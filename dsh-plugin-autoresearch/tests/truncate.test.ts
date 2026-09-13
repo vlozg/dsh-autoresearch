@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSize, truncateAtBoundary, truncateTail } from "../src/host/truncate";
+import { formatSize, truncateAtBoundary, truncateTail } from "../src/host/adapters/truncate";
 
 describe("truncateTail", () => {
   it("keeps short output as-is", () => {

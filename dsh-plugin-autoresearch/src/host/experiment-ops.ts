@@ -5,21 +5,14 @@
  * service through its @internal surface (config, emitState, bestOf, ...).
  */
 
-import * as fs from "node:fs";
 import type { ExperimentService } from "./experiment";
 import {
   AUTO_DIR,
-  ensureParentDir,
-  runLogPath,
-  runsDir,
-  sessionFilePath,
-} from "./paths";
-import {
-  reconstructState,
-  serializeEntry,
+  registerSecondaryMetrics,
   type ConfigHeader,
+  type JsonlEntry,
   type RunEntry,
-} from "./jsonl";
+} from "./domain/model";
 import {
   computeConfidence,
   currentResults,
@@ -29,12 +22,9 @@ import {
   parseMetricLines,
   type MetricMap,
 } from "./domain/metrics";
-import { gitAutoCommit, gitRevert } from "./git";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, runCommand, LLM_MAX_BYTES, LLM_MAX_LINES } from "./run";
-import { formatSize, truncateTail } from "./truncate";
-import { fireHook } from "./hooks";
 import { isMeasureCommand, secondaryMetricsGate } from "./domain/rules";
-import { registerSecondaryMetrics } from "./domain/model";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, LLM_MAX_BYTES, LLM_MAX_LINES } from "./app/ports";
+import { formatSize, truncateTail } from "./adapters/truncate";
 import type { InitParams, LogParams, RunParams, SessionRuntime, ToolOutcome } from "./experiment-types";
 
 // -----------------------------------------------------------------------
@@ -56,17 +46,13 @@ export function initExperimentOp(
       ...(params.objective_label !== undefined ? { objectiveLabel: params.objective_label } : {}),
     };
 
-    const jsonlPath = sessionFilePath(runtime.workDir, "log");
-    try {
-      ensureParentDir(jsonlPath);
-      fs.appendFileSync(jsonlPath, serializeEntry(header as unknown as Record<string, unknown>) + "\n");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return { text: `❌ Failed to write ${jsonlPath}: ${msg}`, value: { ok: false, error: msg } };
+    const append = svc.logStore.appendEntry(runtime.workDir, header as unknown as JsonlEntry);
+    if (!append.ok) {
+      return { text: `❌ Failed to write ${append.path}: ${append.error}`, value: { ok: false, error: append.error } };
     }
 
     // Reconstruct from the full file so segment semantics stay exact.
-    runtime.state = reconstructState(fs.readFileSync(jsonlPath, "utf-8"));
+    runtime.state = svc.logStore.loadState(runtime.workDir);
     const reInit = runtime.state.currentSegment > 0;
     runtime.loop = true;
     runtime.loopStopReason = null;
@@ -105,8 +91,7 @@ export async function runExperimentOp(
       };
     }
 
-    const measureSh = sessionFilePath(workDir, "measure");
-    const measureExists = fs.existsSync(measureSh);
+    const measureExists = svc.logStore.exists(workDir, "measure");
     if (measureExists && !isMeasureCommand(params.command)) {
       return {
         text: `❌ ${AUTO_DIR}/measure.sh exists — you must run it instead of a custom command. Use: run_experiment({ command: "bash ${AUTO_DIR}/measure.sh" })`,
@@ -121,7 +106,7 @@ export async function runExperimentOp(
       };
     }
 
-    const startedAt = Date.now();
+    const startedAt = svc.clock.now();
     const abort = new AbortController();
     // Forward caller (user/tool) cancellation into the stop signal.
     const onCallerAbort = (): void => abort.abort();
@@ -131,7 +116,7 @@ export async function runExperimentOp(
     runtime.runningAbort = abort;
     svc.emitState(runtime);
 
-    const result = await runCommand({
+    const result = await svc.runner.run({
       workDir,
       command: params.command,
       timeoutMs: (params.timeout_seconds ?? svc.config.defaultExperimentTimeoutSeconds) * 1000,
@@ -162,11 +147,11 @@ export async function runExperimentOp(
     let checksOutput = "";
     let checksDuration = 0;
 
-    const checksFile = sessionFilePath(workDir, "checks");
-    if (benchmarkPassed && fs.existsSync(checksFile)) {
+    const checksFile = svc.logStore.sessionPath(workDir, "checks");
+    if (benchmarkPassed && svc.logStore.exists(workDir, "checks")) {
       runtime.running = { command: params.command, startedAt, phase: "checks" };
       svc.emitState(runtime);
-      const checksRun = await runCommand({
+      const checksRun = await svc.runner.run({
         workDir,
         command: `bash "${checksFile}"`,
         timeoutMs: (params.checks_timeout_seconds ?? svc.config.defaultChecksTimeoutSeconds) * 1000,
@@ -199,13 +184,8 @@ export async function runExperimentOp(
     // Persist the full run log under .auto/runs/<n>.log for the dashboard.
     let runLogFile: string | undefined;
     if (result.output.trim() !== "") {
-      try {
-        ensureParentDir(runsDir(workDir));
-        runLogFile = runLogPath(workDir, nextRunNumber);
-        fs.writeFileSync(runLogFile, result.output);
-      } catch {
-        runLogFile = fullOutputPath;
-      }
+      runLogFile = svc.logStore.writeRunLog(workDir, nextRunNumber, result.output);
+      if (runLogFile === undefined) runLogFile = fullOutputPath;
     }
 
     signal?.removeEventListener("abort", onCallerAbort);
@@ -337,7 +317,7 @@ export async function logExperimentOp(
       description: params.description,
       ...(typeof params.title === "string" && params.title !== "" ? { title: params.title } : {}),
       ...(typeof params.summary === "string" && params.summary !== "" ? { summary: params.summary } : {}),
-      timestamp: Date.now(),
+      timestamp: svc.clock.now(),
       segment: state.currentSegment,
       confidence: null,
       ...(mergedASI ? { asi: mergedASI } : {}),
@@ -412,7 +392,7 @@ export async function logExperimentOp(
         [state.metricName || "metric"]: params.metric,
         ...secondaryMetrics,
       };
-      const git = await gitAutoCommit(workDir, params.description, resultData);
+      const git = await svc.git.autoCommit(workDir, params.description, resultData);
       if (git.committed) {
         text += `\n📝 Git: committed${git.sha ? ` — ${git.sha}` : ""}`;
         if (git.sha) experiment.commit = git.sha;
@@ -420,7 +400,7 @@ export async function logExperimentOp(
         text += `\n📝 Git: ${git.message}`;
       }
     } else {
-      const revert = await gitRevert(workDir);
+      const revert = await svc.git.revert(workDir);
       text += revert.ok
         ? `\n📝 Git: reverted changes (${params.status}) — autoresearch files preserved`
         : `\n⚠️ Git revert failed: ${revert.message ?? ""}`;
@@ -428,22 +408,19 @@ export async function logExperimentOp(
 
     // Append to log.jsonl AFTER git so the reverted tree still holds the file
     // (the entry is written post-revert; .auto/ is excluded from reverts).
-    const jsonlPath = sessionFilePath(workDir, "log");
     const jsonlEntry: Record<string, unknown> = {
       ...experiment,
     };
     if (!mergedASI) delete jsonlEntry.asi;
-    try {
-      ensureParentDir(jsonlPath);
-      fs.appendFileSync(jsonlPath, serializeEntry(jsonlEntry) + "\n");
-    } catch (e) {
-      text += `\n⚠️ Failed to write ${AUTO_DIR}/log.jsonl: ${e instanceof Error ? e.message : String(e)}`;
+    const append = svc.logStore.appendEntry(workDir, jsonlEntry);
+    if (!append.ok) {
+      text += `\n⚠️ Failed to write ${AUTO_DIR}/log.jsonl: ${append.error}`;
     }
 
     svc.emitState(runtime);
 
     // after hook (stdout → result text)
-    const afterSteer = await fireHook({
+    const afterSteer = await svc.hooks.fire({
       event: "after",
       cwd: workDir,
       run_entry: jsonlEntry,
@@ -463,7 +440,7 @@ export async function logExperimentOp(
       svc.emitState(runtime);
     } else if (runtime.loop) {
       text += "\n\nBefore choosing the next experiment, consider whether this result or discovery invalidates a previous discard's rollback reason. If so, name what changed and weigh a targeted retry against other candidates. Otherwise, move on. Don't revive a discarded idea without a changed assumption. Verification reruns to resolve measurement noise are separate.";
-      const beforeSteer = await fireHook({
+      const beforeSteer = await svc.hooks.fire({
         event: "before",
         cwd: workDir,
         next_run: experiment.run + 1,

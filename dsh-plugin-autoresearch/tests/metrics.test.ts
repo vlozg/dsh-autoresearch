@@ -11,7 +11,7 @@ import {
   parseMetricLines,
   sortedMedian,
 } from "../src/host/domain/metrics";
-import type { RunEntry } from "../src/host/jsonl";
+import type { RunEntry } from "../src/host/domain/model";
 
 const entry = (partial: Partial<RunEntry>): RunEntry => ({
   run: 1,

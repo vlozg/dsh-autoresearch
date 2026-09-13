@@ -8,8 +8,8 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { sessionFilePath } from "./paths";
-import { reconstructState } from "./jsonl";
+import { sessionFilePath } from "./adapters/fs-log-store";
+import { reconstructState } from "./adapters/jsonl";
 
 /** One discovered (past or live) autoresearch session. */
 export interface DetectedSession {

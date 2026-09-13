@@ -6,7 +6,7 @@ import {
   reconstructState,
   serializeEntry,
   type ConfigHeader,
-} from "../src/host/jsonl";
+} from "../src/host/adapters/jsonl";
 
 const config = (overrides: Partial<ConfigHeader> = {}): ConfigHeader => ({
   type: "config",

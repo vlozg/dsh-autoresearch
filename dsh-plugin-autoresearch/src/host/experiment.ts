@@ -4,34 +4,18 @@
  * first touch — the file is the source of truth), the running-experiment
  * handle, loop mode, and the SSE publisher the client dashboard consumes.
  *
- * Module layout: contracts in ./experiment-types, tool operation bodies in
- * ./experiment-ops, past-session detection helpers in ./detect. The three
- * tools (tools.ts) delegate here; the auto-resume injector (resume.ts) reads
- * loop state and guards from here.
+ * Module layout: driven-side ports in ./app/ports (adapters under
+ * ./adapters, wired by the host entry), contracts in ./experiment-types,
+ * tool operation bodies in ./experiment-ops, past-session scan helpers in
+ * ./detect. The three tools (tools.ts) delegate here; the auto-resume
+ * injector (resume.ts) reads loop state and guards from here.
  */
 
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { Context } from "@deepseek-ai/cordis";
-import * as fs from "node:fs";
 import * as path from "node:path";
-import {
-  byRecency,
-  findAutoWorkdirs,
-  summarizeWorkdir,
-  type DetectResult,
-  type DetectedSession,
-} from "./detect";
-import { SCAN_DEPTH } from "./detect";
-import {
-  canonicalPath,
-  ensureParentDir,
-  readConfig,
-  resolveWorkDir,
-  samePath,
-  sessionFilePath,
-  validateWorkDir,
-} from "./paths";
-import { reconstructState } from "./jsonl";
+import { byRecency, findAutoWorkdirs, summarizeWorkdir, SCAN_DEPTH } from "./detect";
+import type { DetectResult, DetectedSession, LogStore, ServiceDeps } from "./app/ports";
 import { bestMetric, computeConfidence, findBaselineMetric } from "./domain/metrics";
 import { initExperimentOp, runExperimentOp, logExperimentOp } from "./experiment-ops";
 import type {
@@ -54,7 +38,17 @@ export class ExperimentService {
   constructor(
     private readonly ctx: Context,
     /** @internal */ readonly config: PluginConfig,
+    /** @internal */ readonly deps: ServiceDeps,
   ) {}
+
+  /** Driven-side session storage (paths + JSONL + workdir resolution). */
+  get logStore(): LogStore {
+    return this.deps.logStore;
+  }
+  /** @internal */ get clock() { return this.deps.clock; }
+  /** @internal */ get git() { return this.deps.git; }
+  /** @internal */ get runner() { return this.deps.runner; }
+  /** @internal */ get hooks() { return this.deps.hooks; }
 
   subscribe(listener: (event: AutoResearchEvent) => void): () => void {
     this.listeners.add(listener);
@@ -119,18 +113,10 @@ export class ExperimentService {
     const existing = this.runtimes.get(agent.id);
     if (existing !== undefined && existing.agentId === agent.id) return existing;
 
-    const sessionCwd = canonicalPath(agent.session.header.cwd ?? process.cwd());
-    const workDir = resolveWorkDir(sessionCwd);
-    const jsonlPath = sessionFilePath(workDir, "log");
-
-    let content = "";
-    try {
-      content = fs.readFileSync(jsonlPath, "utf-8");
-    } catch {
-      content = "";
-    }
-    const state = reconstructState(content);
-    const config = readConfig(sessionCwd);
+    const sessionCwd = this.logStore.canonicalPath(agent.session.header.cwd ?? process.cwd());
+    const workDir = this.logStore.resolveWorkDir(sessionCwd);
+    const state = this.logStore.loadState(workDir);
+    const config = this.logStore.readConfig(sessionCwd);
 
     const hasLog = state.results.length > 0;
     const runtime: SessionRuntime = {
@@ -148,7 +134,7 @@ export class ExperimentService {
       loop:
         this.config.autoActivateLoop
         && hasLog
-        && samePath(sessionCwd, workDir),
+        && this.logStore.samePath(sessionCwd, workDir),
       loopStopReason: null,
       autoResumeTurns: 0,
       lastTail: undefined,
@@ -165,9 +151,9 @@ export class ExperimentService {
    * the workdir has no session log.
    */
   attachExisting(agent: Agent): ExperimentSnapshot | null {
-    const sessionCwd = canonicalPath(agent.session.header.cwd ?? process.cwd());
-    const workDir = resolveWorkDir(sessionCwd);
-    if (!fs.existsSync(sessionFilePath(workDir, "log"))) return null;
+    const sessionCwd = this.logStore.canonicalPath(agent.session.header.cwd ?? process.cwd());
+    const workDir = this.logStore.resolveWorkDir(sessionCwd);
+    if (!this.logStore.exists(workDir, "log")) return null;
     const runtime = this.runtimeFor(agent);
     this.emitState(runtime);
     return this.snapshot(runtime);
@@ -200,11 +186,11 @@ export class ExperimentService {
     const claimed = new Set<string>();
     const roots = new Set<string>();
     for (const agent of agents) {
-      const cwd = canonicalPath(agent.session.header.cwd ?? process.cwd());
+      const cwd = this.logStore.canonicalPath(agent.session.header.cwd ?? process.cwd());
       roots.add(cwd);
       const snapshot = this.attachExisting(agent);
       if (snapshot !== null) {
-        claimed.add(canonicalPath(snapshot.workDir));
+        claimed.add(this.logStore.canonicalPath(snapshot.workDir));
         const last = snapshot.runs.length > 0 ? snapshot.runs[snapshot.runs.length - 1] : undefined;
         attached.push({
           sessionId: snapshot.sessionId,
@@ -236,7 +222,7 @@ export class ExperimentService {
     }
     for (const { root, depth } of scanRoots) {
       for (const dir of findAutoWorkdirs(root, depth)) {
-        const canonical = canonicalPath(dir);
+        const canonical = this.logStore.canonicalPath(dir);
         if (seen.has(canonical)) continue;
         seen.add(canonical);
         const summary = summarizeWorkdir(dir);
@@ -254,7 +240,7 @@ export class ExperimentService {
     if (agent === undefined) {
       return { error: "autoresearch tools require an agent session (no agent on this tool call)." };
     }
-    const workDirError = validateWorkDir(resolveWorkDir(canonicalPath(agent.session.header.cwd ?? process.cwd())));
+    const workDirError = this.logStore.validateWorkDir(this.logStore.resolveWorkDir(this.logStore.canonicalPath(agent.session.header.cwd ?? process.cwd())));
     if (workDirError) return { error: workDirError };
     return { runtime: this.runtimeFor(agent) };
   }

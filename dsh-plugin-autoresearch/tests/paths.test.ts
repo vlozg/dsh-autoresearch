@@ -11,7 +11,7 @@ import {
   samePath,
   sessionFilePath,
   validateWorkDir,
-} from "../src/host/paths";
+} from "../src/host/adapters/fs-log-store";
 
 let dir: string;
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
