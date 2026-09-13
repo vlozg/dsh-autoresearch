@@ -1,0 +1,13 @@
+# dependencies / package cache
+node_modules/
+.pnpm-store/
+
+# build output (pnpm build -> lib/)
+lib/
+
+# autoresearch runtime artifacts
+.auto/
+
+# misc
+*.tsbuildinfo
+.DS_Store
