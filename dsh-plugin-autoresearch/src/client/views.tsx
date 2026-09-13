@@ -132,7 +132,7 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: num
           ? <span className={"ar-run-delta" + (delta.indexOf("\u25BC") >= 0 ? " ar-good-stat" : "")}>{delta}</span>
           : <span className="ar-run-delta" />}
         <span className="ar-run-side">
-          {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}\u00D7</span> : null}
+          {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}×</span> : null}
           <span className="ar-run-meta">{formatAgo(entry.timestamp, now)}</span>
         </span>
         <span className="ar-run-chev" aria-hidden="true">{open ? "\u25BE" : "\u25B8"}</span>
