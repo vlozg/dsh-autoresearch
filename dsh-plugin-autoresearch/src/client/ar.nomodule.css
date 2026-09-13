@@ -115,15 +115,15 @@
   border-radius: 12px;
   padding: 10px 12px;
 }
-.ar-hero-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ar-hero-top { display: flex; align-items: baseline; justify-content: flex-start; gap: 12px; }
 .ar-hero-name { font-weight: 700; font-size: 13px; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-hero-dir { flex: none; font-size: 11.5px; color: #94a3b8; }
 .ar-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
 .ar-hero-cell { min-width: 0; }
-.ar-hero-k { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: #8ea0b5; }
+.ar-hero-k { font-size: 11px; font-weight: 500; letter-spacing: 0.2px; color: #8ea0b5; }
 .ar-hero-kbtn { display: block; border: 0; background: transparent; padding: 0; font: inherit; text-align: left; cursor: pointer; }
 .ar-hero-cell + .ar-hero-cell { border-left: 1px solid rgba(148, 163, 184, 0.14); padding-left: 10px; }
-.ar-hero-v { margin-top: 2px; font-size: 18px; font-weight: 700; color: #f1f5f9; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-hero-v { margin-top: 2px; font-size: 21px; font-weight: 700; color: #f1f5f9; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-hero-main .ar-hero-v { font-size: 26px; font-weight: 750; }
 .ar-hero-v.ar-good { color: #4ade80; }
 .ar-hero-v.ar-warn { color: #fbbf24; }
@@ -221,7 +221,7 @@
 .ar-run.ar-open { background: rgba(148, 163, 184, 0.09); }
 .ar-run-head {
   display: grid;
-  grid-template-columns: 34px 74px 56px minmax(0, 1fr) 16px;
+  grid-template-columns: 34px 74px minmax(48px, auto) minmax(0, 1fr) 16px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -249,7 +249,9 @@
 .ar-chip.ar-crash { background: rgba(239, 68, 68, 0.16); color: #f87171; }
 .ar-chip.ar-checks { background: rgba(249, 115, 22, 0.16); color: #fb923c; }
 .ar-run-metric { justify-self: end; font-weight: 700; font-size: 13px; color: #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ar-run-delta { font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-delta { font-size: 10.5px; font-weight: 500; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-delta.ar-bad-stat { color: rgba(248, 113, 113, 0.55); }
+.ar-run-delta.ar-good-stat { color: rgba(74, 222, 128, 0.6); }
 .ar-run-chev { font-size: 10px; color: #7d8da1; text-align: center; }
 .ar-run-desc { margin-top: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; overflow: hidden; }
 .ar-run-title {
@@ -358,7 +360,7 @@
 @media (max-width: 560px) {
   .ar-float { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .ar-panel { right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 16px); max-height: 82vh; }
-  .ar-run-head { grid-template-columns: 30px 66px 48px minmax(0, 1fr) 14px; gap: 6px; }
+  .ar-run-head { grid-template-columns: 30px 66px minmax(44px, auto) minmax(0, 1fr) 14px; gap: 6px; }
   .ar-chip { padding: 2px 6px; }
   .ar-hero-v { font-size: 16px; }
   .ar-hero-main .ar-hero-v { font-size: 22px; }

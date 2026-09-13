@@ -478,11 +478,11 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
             <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
               {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
             </div>
-            {bestGap}
           </div>
           <div className="ar-hero-cell">
             <div className="ar-hero-k" title="First run in the current segment">Baseline</div>
             <div className="ar-hero-v">{snapshot.baseline !== null ? formatNum(snapshot.baseline, snapshot.metricUnit) : "–"}</div>
+            {bestGap}
           </div>
           <div className="ar-hero-cell">
             <button type="button" className="ar-hero-k ar-hero-kbtn" aria-expanded={confInfo} onClick={() => setConfInfo((prev) => !prev)}>
