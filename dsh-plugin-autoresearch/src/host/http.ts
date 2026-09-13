@@ -135,7 +135,13 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
         if (fenceRejected(req, res)) return;
         const url = new URL(req.url ?? "/autoresearch/detect", "http://" + (req.headers.host ?? "localhost"));
         const sessionId = url.searchParams.get("sessionId") ?? undefined;
-        sendJson(res, 200, service.detect(sessionId));
+        try {
+          sendJson(res, 200, service.detect(sessionId));
+        } catch (err) {
+          // Surfacing the failure beats the webserver's last-resort bare 400
+          // (headers-not-sent guard) — the dashboard shows the real message.
+          sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+        }
       },
     }),
   );

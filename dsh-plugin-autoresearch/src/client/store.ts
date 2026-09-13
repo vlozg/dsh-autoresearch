@@ -293,7 +293,17 @@ export class AutoresearchClientStore {
         : "";
       const response = await this.deps.fetchFn(DETECT_URL + suffix);
       if (!response.ok) {
-        this.detectError = "detection failed — is the host bundle current? (restart DSH to pick up the detect route)";
+        // Prefer the host's JSON error body (e.g. 500 {error}) when present;
+        // a bare 400/404 from an outdated host bundle has no body at all.
+        let detail: string | null = null;
+        try {
+          const body = (await response.json()) as { error?: unknown };
+          if (typeof body?.error === "string" && body.error !== "") detail = body.error;
+        } catch {
+          // No parseable body — fall through to the generic message.
+        }
+        this.detectError = detail
+          ?? "detection failed — is the host bundle current? (restart DSH to pick up the detect route)";
       } else {
         const parsed = parseDetectResult(await response.json());
         if (parsed === null) this.detectError = "unexpected detection response";

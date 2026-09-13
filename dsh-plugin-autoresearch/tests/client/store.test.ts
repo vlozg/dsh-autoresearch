@@ -214,7 +214,7 @@ describe("AutoresearchClientStore", () => {
       close() { source.closed = true; },
     };
     const store = new AutoresearchClientStore({
-      fetchFn: async () => ({ ok: false, json: async () => ({ error: "nope" }) }),
+      fetchFn: async () => ({ ok: false, json: async () => { throw new Error("bare 400 — no body"); } }),
       eventSourceFactory: () => like,
     });
     const release = store.hold();
@@ -222,6 +222,24 @@ describe("AutoresearchClientStore", () => {
     const view = store.getSnapshot();
     expect(view.detecting).toBe(false);
     expect(view.detectError).toBe("detection failed — is the host bundle current? (restart DSH to pick up the detect route)");
+    release();
+  });
+
+  it("detectPastSessions surfaces the host JSON error body when present", async () => {
+    const source: FakeSource = { listeners: new Map(), onerror: null, closed: false };
+    const like: EventSourceLike = {
+      addEventListener(type, listener) { source.listeners.set(type, listener); },
+      set onerror(handler) { source.onerror = handler; },
+      get onerror() { return source.onerror; },
+      close() { source.closed = true; },
+    };
+    const store = new AutoresearchClientStore({
+      fetchFn: async () => ({ ok: false, status: 500, json: async () => ({ error: "cannot get property \"agents\" without inject" }) }),
+      eventSourceFactory: () => like,
+    });
+    const release = store.hold();
+    await store.detectPastSessions();
+    expect(store.getSnapshot().detectError).toBe('cannot get property "agents" without inject');
     release();
   });
 });

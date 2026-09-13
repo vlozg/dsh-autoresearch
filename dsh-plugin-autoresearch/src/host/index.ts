@@ -20,7 +20,10 @@ import { registerAutoResearchHttp } from "./http";
 import { autoresearchCreateSkill } from "./skill";
 
 export const name = "dsh-plugin-autoresearch";
-export const inject = ["tools"] as const;
+// "agents" must be declared here: the cordis context proxy throws
+// cannot-get-property-without-inject otherwise — this bit detect()
+// (the mystery bare HTTP 400) and would bite the auto-resume hooks too.
+export const inject = ["tools", "agents"] as const;
 
 /** Runtime configuration schema (validated and defaulted by Cordis). */
 export const Config = Schema.object({

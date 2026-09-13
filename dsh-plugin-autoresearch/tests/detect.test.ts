@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ExperimentService, type PluginConfig } from "../src/host/experiment";
 import { byRecency, findAutoWorkdirs, summarizeWorkdir, type DetectedSession } from "../src/host/detect";
+import { inject as pluginInject } from "../src/host/index";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
 const CONFIG: PluginConfig = {
@@ -91,7 +92,11 @@ describe("summarizeWorkdir", () => {
 
 describe("ExperimentService.detect", () => {
   it("attaches matching workdirs and lists the rest", () => {
-    const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-detect-")));
+    // Private parent: the scan also walks each agent cwd's parent, so nesting
+    // under a fresh dir keeps the assertions immune to stray /tmp/.auto dirs
+    // (e.g. engine.selfcheck.test.ts running in a parallel worker).
+    const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-detect-")));
+    const tmp = path.join(base, "ws");
     const ws = path.join(tmp, "ws");
     const projA = path.join(ws, "projA");
     const projB = path.join(ws, "projB", "nested");
@@ -128,16 +133,25 @@ describe("ExperimentService.detect", () => {
     expect(unknown.attached).toHaveLength(0);
     expect(unknown.unattached).toHaveLength(0);
 
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true, force: true });
   });
 
   it("reports nothing when no conversation has an autoresearch workdir", () => {
-    const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-none-")));
-    const service = new ExperimentService({ agents: { list: () => [fakeAgent("solo", tmp)] } } as never, CONFIG);
+    const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-none-")));
+    const solo = path.join(base, "empty");
+    fs.mkdirSync(solo, { recursive: true });
+    const service = new ExperimentService({ agents: { list: () => [fakeAgent("solo", solo)] } } as never, CONFIG);
     const result = service.detect();
     expect(result.attached).toEqual([]);
     expect(result.unattached).toEqual([]);
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true, force: true });
+  });
+});
+
+describe("plugin inject contract", () => {
+  it("declares the agents service (cordis property access throws without it)", () => {
+    expect(pluginInject).toContain("agents");
+    expect(pluginInject).toContain("tools");
   });
 });
 

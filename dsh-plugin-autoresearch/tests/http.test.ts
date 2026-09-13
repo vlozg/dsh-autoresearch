@@ -99,6 +99,19 @@ describe("GET /autoresearch/detect", () => {
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body)).toHaveProperty("attached");
   });
+
+  it("surfaces a detect() throw as a 500 JSON error instead of a bare 400", async () => {
+    const service = {
+      ...fakeService(),
+      detect: () => {
+        throw new Error("boom in detect");
+      },
+    };
+    const out = await drive(() => {}, { headers: LOOPBACK, method: "GET", url: "/autoresearch/detect" }, service);
+    expect(out.status).toBe(500);
+    expect(out.ended).toBe(true);
+    expect(JSON.parse(out.body)).toEqual({ error: "boom in detect" });
+  });
 });
 
 async function drive(_handler: unknown, reqSpec: RecordedRequest, service: ReturnType<typeof fakeService> = fakeService()): Promise<RecordedResponse> {
