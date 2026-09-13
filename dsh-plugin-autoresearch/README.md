@@ -35,15 +35,32 @@ pnpm test   # vitest
 pnpm build  # tsdown -> lib/index.mjs (host), lib/client.cjs (client)
 ```
 
-### Live reload without restarting the webserver
+### Install layout (one insert per id!)
 
-The client bundle is hot: a rebuild changes the content rev and the page picks it up on refresh. The host module needs a fresh module URL — the profile patch layer uses a query buster; bump it on every rebuild you want live:
+As a profile bundle the plugin mounts at boot through **its own** `cordis.patch.yml`
+(referenced by `dsh.bundle.patch` in this package.json; the profile lists the
+package in `dsh.profile.bundles`). Boot composes every layer — bundle patches,
+the profile's `cordis.patch.yml`, home patches, `--patch` overlays — into one
+entry list, and the loader rejects duplicate entry ids, so the profile patch
+layer must **never** also insert `id: autoresearch`:
 
 ```yaml
-# /root/.dsh/profiles/web/cordis.patch.yml
+# /root/.dsh/profiles/web/cordis.patch.yml  — keep as [] (or config overrides only)
+[]
+```
+
+A second insert crashes the next webserver boot with
+`duplicate loader entry id: autoresearch`.
+
+### Live reload without restarting the webserver
+
+The client bundle is hot: a rebuild changes the content rev and the page picks it up on refresh — no config change needed. The host module is **not** hot in the bundle layout: it loads once per boot via the bare specifier, and node's ESM cache keeps serving the old build until restart. For host iteration without a restart, temporarily drop the package from `dsh.profile.bundles` (profile package.json) and insert it from the profile patch layer with a query buster instead:
+
+```yaml
+# profile cordis.patch.yml — ONLY while the package is not a bundle
 - insert:
     - id: autoresearch
       name: /root/.../lib/index.mjs?v=2   # bump v to bust node's ESM cache
 ```
 
-Removing the insert disposes the plugin; re-adding remounts it — no server restart needed.
+Removing that insert disposes the plugin; re-adding remounts it — but remember to restore the `dsh.profile.bundles` entry afterwards, or the next boot loses the plugin.
