@@ -251,7 +251,7 @@
 .ar-run-metric { justify-self: end; font-weight: 700; font-size: 13px; color: #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ar-run-delta { font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-run-chev { font-size: 10px; color: #7d8da1; text-align: center; }
-.ar-run-desc { margin-top: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ar-run-desc { margin-top: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; overflow: hidden; }
 .ar-run-title {
   display: block;
   font-size: 12.5px;
@@ -297,7 +297,12 @@
 .ar-run-detail-v { flex: 1; min-width: 0; color: #cbd5e1; font-variant-numeric: tabular-nums; word-break: break-word; }
 .ar-run-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
 .ar-run-act {
-  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  flex: none;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 8px;
   background: transparent;
@@ -310,22 +315,31 @@
 .ar-run-foot { font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; }
 .ar-run-all {
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   background: transparent;
   padding: 2px 0;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   color: #7dd3fc;
   cursor: pointer;
 }
+.ar-run-all svg { transition: transform 0.15s ease; }
+.ar-run-all.ar-on svg { transform: rotate(180deg); }
 .ar-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
 
 .ar-actions { display: flex; gap: 8px; flex: none; padding: 10px 12px; border-top: 1px solid rgba(148, 163, 184, 0.16); }
 .ar-btn {
   flex: 1;
-  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(148, 163, 184, 0.1);
   color: #e2e8f0;
   font-size: 13.5px;
@@ -364,9 +378,9 @@
   font-size: 13px;
   background: transparent;
 }
-.ar-tabroot .ar-actions { padding: 4px 0 0; }
+.ar-tabroot .ar-actions { padding: 10px 12px; margin: 2px -12px 0; background: rgba(13, 18, 28, 0.97); backdrop-filter: blur(6px); box-shadow: 0 -10px 18px rgba(2, 8, 14, 0.45); }
 .ar-tabhead { display: flex; align-items: center; gap: 9px; flex: none; }
-.ar-tabfoot { flex: none; position: sticky; bottom: 0; background: inherit; }
+.ar-tabfoot { flex: none; position: sticky; bottom: -12px; }
 
 /* ---- toolview cards (conversation rows) ---- */
 .ar-tool { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; font-size: 13px; }
