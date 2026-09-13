@@ -114,7 +114,8 @@ export function buildAutoResearchTools(service: ExperimentService) {
       description: {
         type: "string",
         required: true,
-        description: "Short description of what this experiment tried",
+        description:
+          'What this experiment tried, written as "Short title: what happened and why" — the sidebar shows the title and finding separately',
       },
       metrics: {
         type: "object",

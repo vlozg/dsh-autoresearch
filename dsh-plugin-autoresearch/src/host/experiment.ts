@@ -600,6 +600,7 @@ export class ExperimentService {
         text += ` ${name}=${formatNum(value, def?.unit ?? "")}`;
       }
       text += `\nUse these values directly in log_experiment (metric: ${parsedPrimary ?? "?"}, metrics: {${secondary.map(([k, v]) => `\"${k}\": ${v}`).join(", ")}})\n`;
+      text += 'Describe the run as "Short title: what happened and why".\n';
     }
 
     text += `\n${llmTruncation.content}`;

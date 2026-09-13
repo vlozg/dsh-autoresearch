@@ -6,7 +6,7 @@
  */
 
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { formatAgo, formatElapsed, formatNum } from "./format";
+import { formatAgo, formatElapsed, formatNum, splitRunText } from "./format";
 import { parseInitText, parseLogText, parseRunText } from "./parse";
 import {
   type AutoresearchClientStore,
@@ -26,7 +26,7 @@ function StatusDot(props: { state: string; className?: string }): ReactNode {
 
 function Chip(props: { status: string }): ReactNode {
   const chipClass = props.status === "keep" ? "ar-keep" : props.status === "discard" ? "ar-discard" : props.status === "crash" ? "ar-crash" : "ar-checks";
-  return <span className={"ar-chip " + chipClass}>{props.status === "checks_failed" ? "checks" : props.status}</span>;
+  return <span className={"ar-chip " + chipClass}>{props.status === "checks_failed" ? "checks" : props.status === "discard" ? "discarded" : props.status}</span>;
 }
 
 function confidenceClass(confidence: number | null | undefined): string {
@@ -60,19 +60,37 @@ function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): RunDelta | nu
 }
 
 /** Short scan title + remainder finding from a free-text run description. */
-function splitRunText(desc: string): { title: string; finding: string } {
-  const text = desc.trim();
-  if (text.length <= 72) return { title: text, finding: "" };
-  const cut = text.lastIndexOf(" ", 72);
-  const title = cut > 32 ? text.slice(0, cut) : text.slice(0, 72);
-  return { title, finding: text.slice(title.length).replace(/^[\s,;:\u2013\u2014-]+/, "") };
-}
-
 function loopState(snapshot: ExperimentSnapshot): { state: string; label: string } {
   if (snapshot.running !== null) return { state: "running", label: snapshot.running.phase === "checks" ? "checking" : "running" };
   if (snapshot.loop) return { state: "live", label: "loop on" };
   if (snapshot.loopStopReason !== null) return { state: "idle", label: "loop off" };
   return { state: "off", label: "idle" };
+}
+
+/** Right-aligned loop/run badges for the carrier header row. */
+function SessionBadges(props: { snapshot: ExperimentSnapshot }): ReactNode {
+  const snapshot = props.snapshot;
+  const state = loopState(snapshot);
+  const pillLabel = state.state === "running" ? "Running" : state.state === "live" ? "Loop active" : state.state === "idle" ? "Loop paused" : "Idle";
+  return (
+    <div className="ar-badges">
+      <span className={"ar-pill ar-pill-" + state.state}>{pillLabel}</span>
+      <span className="ar-pill">
+        {String(snapshot.runs.length)}
+        {snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""} runs
+      </span>
+    </div>
+  );
+}
+
+/** "workdir · metric · Segment n · updated Xm ago" line under the session title. */
+function sessionSubtitle(snapshot: ExperimentSnapshot, now: number): string {
+  const workName = snapshot.workDir.split("/").filter(Boolean).pop() ?? snapshot.workDir;
+  const parts = [workName, snapshot.metricName, "Segment " + String(snapshot.currentSegment)];
+  const lastRun = snapshot.runs.length > 0 ? snapshot.runs[snapshot.runs.length - 1].timestamp : null;
+  if (lastRun !== null) parts.push("updated " + formatAgo(lastRun, now));
+  if (snapshot.loopStopReason !== null) parts.push(snapshot.loopStopReason);
+  return parts.join(" · ");
 }
 
 /** "Detect past autoresearch sessions" button + discovered-session listing. */
@@ -151,7 +169,14 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
       )}
       {open ? (
         <div className="ar-run-detail">
-          <div className="ar-run-detail-desc">{entry.description}</div>
+          {parts.finding !== "" ? (
+            <>
+              <div className="ar-run-detail-title">{parts.title}</div>
+              <div className="ar-run-detail-desc">{parts.finding}</div>
+            </>
+          ) : (
+            <div className="ar-run-detail-desc">{entry.description}</div>
+          )}
           {pairs.length > 0 ? (
             <div className="ar-run-keys">
               <div className="ar-run-keys-h">Key metrics</div>
@@ -168,26 +193,24 @@ function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry }): React
               ) : null}
             </div>
           ) : null}
-          <div className="ar-run-detail-row">
-            <span className="ar-run-detail-k">segment</span>
-            <span className="ar-run-detail-v">{entry.segment}</span>
+          <div className="ar-run-acts">
+            <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+              View diff
+            </button>
+            <button type="button" className="ar-run-act" title="Coming soon" onClick={(event) => event.stopPropagation()}>
+              Logs
+            </button>
           </div>
-          {conf !== null ? (
-            <div className="ar-run-detail-row">
-              <span className="ar-run-detail-k">confidence</span>
-              <span className={"ar-run-detail-v" + (conf >= 2 ? " ar-good-stat" : "")}>{conf.toFixed(1)}× vs segment noise</span>
-            </div>
-          ) : null}
-          <div className="ar-run-detail-row">
-            <span className="ar-run-detail-k">time</span>
-            <span className="ar-run-detail-v">{new Date(entry.timestamp).toLocaleString()}</span>
+          <div className="ar-run-foot">
+            {[
+              entry.commit !== "" ? entry.commit.slice(0, 7) : null,
+              new Date(entry.timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+              "segment " + String(entry.segment),
+              conf !== null ? conf.toFixed(1) + "×" : null,
+            ]
+              .filter((part): part is string => part !== null)
+              .join(" · ")}
           </div>
-          {entry.commit !== "" ? (
-            <div className="ar-run-detail-row">
-              <span className="ar-run-detail-k">commit</span>
-              <span className="ar-run-detail-v ar-mono">{entry.commit}</span>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -312,14 +335,11 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
           <StatusDot state={headline.state} />
           <div className="ar-head-main">
             <div className="ar-title">{session !== undefined ? session.snapshot.name : "Autoresearch"}</div>
-            {view.subscribed ? (
-              session !== undefined && session.snapshot.loopStopReason !== null
-                ? <div className="ar-subtitle">{session.snapshot.loopStopReason}</div>
-                : null
-            ) : (
-              <div className="ar-subtitle">reconnecting…</div>
-            )}
+            {session !== undefined ? (
+              <div className="ar-subtitle">{view.subscribed ? sessionSubtitle(session.snapshot, now) : "reconnecting…"}</div>
+            ) : null}
           </div>
+          {session !== undefined ? <SessionBadges snapshot={session.snapshot} /> : null}
           <button type="button" className="ar-close" aria-label="Collapse dashboard" onClick={() => setExpanded(false)}>
             ×
           </button>
@@ -378,10 +398,6 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
   const dir = snapshot.bestDirection;
   const runs = [...snapshot.runs].reverse();
   const kept = snapshot.runs.filter((entry) => entry.status === "keep");
-  const workName = snapshot.workDir.split("/").filter(Boolean).pop() ?? snapshot.workDir;
-  const lastRun = snapshot.runs.length > 0 ? snapshot.runs[snapshot.runs.length - 1].timestamp : null;
-  const state = loopState(snapshot);
-  const pillLabel = state.state === "running" ? "Running" : state.state === "live" ? "Loop active" : state.state === "idle" ? "Loop paused" : "Idle";
   const filtered = runs.filter((entry) => {
     if (filter === "keep" && entry.status !== "keep") return false;
     if (filter === "discard" && entry.status !== "discard") return false;
@@ -406,23 +422,13 @@ function SessionPanel(props: { session: SessionView; tail?: string; now: number 
 
   return (
     <>
-      <div className="ar-sessionrow">
-        <div className="ar-badges">
-          <span className={"ar-pill ar-pill-" + state.state}>{pillLabel}</span>
-          <span className="ar-pill">
-            {String(snapshot.runs.length)}
-            {snapshot.maxExperiments !== null ? "/" + String(snapshot.maxExperiments) : ""} runs
-          </span>
-        </div>
-        <div className="ar-updated">{lastRun !== null ? "updated " + formatAgo(lastRun, now) : ""}</div>
-      </div>
       <div className="ar-hero">
         <div className="ar-hero-top">
           <span className="ar-hero-name">{snapshot.metricName}</span>
           <span className="ar-hero-dir">{dir === "lower" ? "Lower is better ↓" : "Higher is better ↑"}</span>
         </div>
         <div className="ar-hero-grid">
-          <div className="ar-hero-cell">
+          <div className="ar-hero-cell ar-hero-main">
             <div className="ar-hero-k">Best</div>
             <div className={"ar-hero-v" + (snapshot.bestMetric !== null ? " ar-good" : "")}>
               {snapshot.bestMetric !== null ? formatNum(snapshot.bestMetric, snapshot.metricUnit) : "–"}
@@ -576,14 +582,9 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
         <StatusDot state={headline.state} />
         <div className="ar-head-main">
           <div className="ar-title">{session.snapshot.name}</div>
-          {view.subscribed ? (
-            session.snapshot.loopStopReason !== null
-              ? <div className="ar-subtitle">{session.snapshot.loopStopReason}</div>
-              : null
-          ) : (
-            <div className="ar-subtitle">reconnecting…</div>
-          )}
+          <div className="ar-subtitle">{view.subscribed ? sessionSubtitle(session.snapshot, now) : "reconnecting…"}</div>
         </div>
+        <SessionBadges snapshot={session.snapshot} />
       </div>
       {view.subscribed ? null : <div className="ar-connwarn">Feed disconnected — retrying…</div>}
       <SessionPanel session={session} now={now} />

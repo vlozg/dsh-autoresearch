@@ -23,3 +23,19 @@ export function formatAgo(timestamp: number, now: number): string {
   if (delta < 86400) return Math.floor(delta / 3600) + "h ago";
   return Math.floor(delta / 86400) + "d ago";
 }
+/**
+ * Split a log_experiment description into sidebar title + finding.
+ * Prefers the recommended "Title: finding" form; falls back to a
+ * word-boundary cut near 72 chars for legacy free-text descriptions.
+ */
+export function splitRunText(desc: string): { title: string; finding: string } {
+  const text = desc.trim();
+  const colon = text.indexOf(": ");
+  if (colon > 0 && colon <= 80 && /\s/.test(text.slice(0, colon))) {
+    return { title: text.slice(0, colon), finding: text.slice(colon + 2) };
+  }
+  if (text.length <= 72) return { title: text, finding: "" };
+  const cut = text.lastIndexOf(" ", 72);
+  const title = cut > 32 ? text.slice(0, cut) : text.slice(0, 72);
+  return { title, finding: text.slice(title.length).replace(/^[\s,;:\u2013\u2014-]+/, "") };
+}

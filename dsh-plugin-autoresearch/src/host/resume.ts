@@ -30,7 +30,7 @@ const BENCHMARK_GUARDRAIL =
 function composeResumeMessage(runtime: SessionRuntime): string {
   return [
     "Run the next iteration now.",
-    "Use the persisted autoresearch state as needed, pick the most promising hypothesis, then call run_experiment + log_experiment.",
+    "Use the persisted autoresearch state as needed, pick the most promising hypothesis, then call run_experiment + log_experiment (description: \"Short title: what happened and why\").",
     BENCHMARK_GUARDRAIL,
   ].join(" ")
     // Session-scoped context the model may not retain after compaction:
