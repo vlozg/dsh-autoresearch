@@ -23,7 +23,6 @@ import {
 } from "./detect";
 import { SCAN_DEPTH } from "./detect";
 import {
-  AUTO_DIR,
   canonicalPath,
   ensureParentDir,
   readConfig,
@@ -33,7 +32,7 @@ import {
   validateWorkDir,
 } from "./paths";
 import { reconstructState } from "./jsonl";
-import { computeConfidence, currentResults, findBaselineMetric } from "./metrics";
+import { bestMetric, computeConfidence, findBaselineMetric } from "./domain/metrics";
 import { initExperimentOp, runExperimentOp, logExperimentOp } from "./experiment-ops";
 import type {
   AutoResearchEvent,
@@ -103,18 +102,7 @@ export class ExperimentService {
   }
 
   /** @internal */ bestOf(state: SessionRuntime["state"]): number | null {
-    let best: number | null = null;
-    for (const r of currentResults(state.results, state.currentSegment)) {
-      if (r.metric <= 0) continue;
-      if (best === null) {
-        best = r.metric;
-        continue;
-      }
-      const better =
-        state.bestDirection === "lower" ? r.metric < best : r.metric > best;
-      if (better) best = r.metric;
-    }
-    return best;
+    return bestMetric(state.results, state.currentSegment, state.bestDirection);
   }
 
   getRuntime(sessionId: string): SessionRuntime | undefined {
@@ -271,21 +259,6 @@ export class ExperimentService {
     return { runtime: this.runtimeFor(agent) };
   }
 
-  isMeasureCommand(workDir: string, command: string): boolean {
-    // Port of pi's isAutoresearchShCommand: the benchmark script must be the
-    // first real command (env-var / env|time|nice|nohup prefixes allowed).
-    let cmd = command.trim();
-    cmd = cmd.replace(/^(?:\w+=\S*\s+)+/, "");
-    let prev: string;
-    do {
-      prev = cmd;
-      cmd = cmd.replace(/^(?:env|time|nice|nohup)(?:\s+-\S+(?:\s+\d+)?)*\s+/, "");
-    } while (cmd !== prev);
-    const autoDirPattern = `${AUTO_DIR.replace(".", "\\.")}`;
-    return new RegExp(
-      `^(?:(?:bash|sh|source)\\s+(?:-\\w+\\s+)*)?(?:/|\\.{1,2}/|[\\w.-]+/)*${autoDirPattern}/measure\\.sh(?:\\s|$)`,
-    ).test(cmd);
-  }
   // -----------------------------------------------------------------------
   // Tool operations — bodies live in ./experiment-ops
   // -----------------------------------------------------------------------

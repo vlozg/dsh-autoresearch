@@ -10,7 +10,7 @@ import {
   isBetter,
   parseMetricLines,
   sortedMedian,
-} from "../src/host/metrics";
+} from "../src/host/domain/metrics";
 import type { RunEntry } from "../src/host/jsonl";
 
 const entry = (partial: Partial<RunEntry>): RunEntry => ({

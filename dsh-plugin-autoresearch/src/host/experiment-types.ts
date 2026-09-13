@@ -1,11 +1,10 @@
 /**
  * Autoresearch contracts shared across the host: SSE events, snapshots, tool
- * params/outcomes, the per-session runtime shape, and auto-resume limits.
- * Pure types + constants — no runtime dependencies beyond jsonl/metrics.
+ * params/outcomes, and the per-session runtime shape. Pure types + constants —
+ * no runtime dependencies beyond the domain model.
  */
 
-import { reconstructState, type RunEntry, type MetricDef } from "./jsonl";
-import { countConsecutiveDiscardOrCrashResults } from "./metrics";
+import type { ExperimentState, MetricDef, RunEntry } from "./domain/model";
 
 export type AutoResearchEvent =
   | { kind: "state"; sessionId: string; snapshot: ExperimentSnapshot }
@@ -78,7 +77,7 @@ export interface SessionRuntime {
   sessionCwd: string;
   workDir: string;
   /** Reconstructed from .auto/log.jsonl — mutated in place. */
-  state: ReturnType<typeof reconstructState>;
+  state: ExperimentState;
   maxExperiments: number | null;
   running: RunningExperiment | null;
   runningAbort: AbortController | null;
@@ -90,25 +89,6 @@ export interface SessionRuntime {
   loopStopReason: string | null;
   autoResumeTurns: number;
   lastTail: string | undefined;
-}
-
-export const AUTORESUME_TURN_LIMIT = 200;
-export const CONSECUTIVE_FAILURE_OVERRIDE_LIMIT = 20;
-
-/** Auto-resume stop decision, mirroring pi's autoResumeStopReasonFor. */
-export function autoResumeStopReason(state: {
-  autoResumeTurns: number;
-  results: RunEntry[];
-  currentSegment: number;
-}): string | null {
-  if (state.autoResumeTurns >= AUTORESUME_TURN_LIMIT) {
-    return `Autoresearch auto-resume limit reached (${AUTORESUME_TURN_LIMIT} turns)`;
-  }
-  const failures = countConsecutiveDiscardOrCrashResults(state.results, state.currentSegment);
-  if (failures > CONSECUTIVE_FAILURE_OVERRIDE_LIMIT) {
-    return `Autoresearch auto-resume stopped — ${failures} consecutive discards/crashes`;
-  }
-  return null;
 }
 
 export interface PluginConfig {

@@ -28,11 +28,13 @@ import {
   formatNum,
   parseMetricLines,
   type MetricMap,
-} from "./metrics";
+} from "./domain/metrics";
 import { gitAutoCommit, gitRevert } from "./git";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, runCommand, LLM_MAX_BYTES, LLM_MAX_LINES } from "./run";
 import { formatSize, truncateTail } from "./truncate";
 import { fireHook } from "./hooks";
+import { isMeasureCommand, secondaryMetricsGate } from "./domain/rules";
+import { registerSecondaryMetrics } from "./domain/model";
 import type { InitParams, LogParams, RunParams, SessionRuntime, ToolOutcome } from "./experiment-types";
 
 // -----------------------------------------------------------------------
@@ -105,7 +107,7 @@ export async function runExperimentOp(
 
     const measureSh = sessionFilePath(workDir, "measure");
     const measureExists = fs.existsSync(measureSh);
-    if (measureExists && !svc.isMeasureCommand(workDir, params.command)) {
+    if (measureExists && !isMeasureCommand(params.command)) {
       return {
         text: `❌ ${AUTO_DIR}/measure.sh exists — you must run it instead of a custom command. Use: run_experiment({ command: "bash ${AUTO_DIR}/measure.sh" })`,
         value: { ok: false, blocked: "measure-sh-guard" },
@@ -308,23 +310,20 @@ export async function logExperimentOp(
       };
     }
 
-    if (state.secondaryMetrics.length > 0) {
-      const knownNames = new Set(state.secondaryMetrics.map((m) => m.name));
-      const providedNames = new Set(Object.keys(secondaryMetrics));
-      const missing = [...knownNames].filter((n) => !providedNames.has(n));
-      if (missing.length > 0) {
+    const gate = secondaryMetricsGate(state.secondaryMetrics, secondaryMetrics, params.force === true);
+    if (!gate.ok) {
+      const knownNames = state.secondaryMetrics.map((m) => m.name);
+      const providedNames = Object.keys(secondaryMetrics);
+      if (gate.blocked === "missing-secondary-metrics") {
         return {
-          text: `❌ Missing secondary metrics: ${missing.join(", ")}\n\nYou must provide all previously tracked metrics. Expected: ${[...knownNames].join(", ")}\nGot: ${[...providedNames].join(", ") || "(none)"}\n\nFix: include ${missing.map((m) => `"${m}": <value>`).join(", ")} in the metrics parameter.`,
-          value: { ok: false, blocked: "missing-secondary-metrics", missing },
+          text: `❌ Missing secondary metrics: ${gate.missing.join(", ")}\n\nYou must provide all previously tracked metrics. Expected: ${knownNames.join(", ")}\nGot: ${providedNames.join(", ") || "(none)"}\n\nFix: include ${gate.missing.map((m) => `"${m}": <value>`).join(", ")} in the metrics parameter.`,
+          value: { ok: false, blocked: "missing-secondary-metrics", missing: gate.missing },
         };
       }
-      const newMetrics = [...providedNames].filter((n) => !knownNames.has(n));
-      if (newMetrics.length > 0 && !params.force) {
-        return {
-          text: `❌ New secondary metric${newMetrics.length > 1 ? "s" : ""} not previously tracked: ${newMetrics.join(", ")}\n\nExisting metrics: ${[...knownNames].join(", ")}\n\nIf this metric has proven very valuable to watch, call log_experiment again with force: true to add it. Otherwise, remove it from the metrics parameter.`,
-          value: { ok: false, blocked: "new-secondary-metrics", newMetrics },
-        };
-      }
+      return {
+        text: `❌ New secondary metric${gate.newMetrics.length > 1 ? "s" : ""} not previously tracked: ${gate.newMetrics.join(", ")}\n\nExisting metrics: ${knownNames.join(", ")}\n\nIf this metric has proven very valuable to watch, call log_experiment again with force: true to add it. Otherwise, remove it from the metrics parameter.`,
+        value: { ok: false, blocked: "new-secondary-metrics", newMetrics: gate.newMetrics },
+      };
     }
 
     const mergedASI = params.asi && Object.keys(params.asi).length > 0 ? params.asi : undefined;
@@ -347,17 +346,7 @@ export async function logExperimentOp(
     state.results.push(experiment);
     runtime.experimentsThisSession++;
 
-    for (const name of Object.keys(secondaryMetrics)) {
-      if (!state.secondaryMetrics.find((m) => m.name === name)) {
-        let unit = "";
-        if (name.endsWith("µs")) unit = "µs";
-        else if (name.endsWith("_ms")) unit = "ms";
-        else if (name.endsWith("_s") || name.endsWith("_sec")) unit = "s";
-        else if (name.endsWith("_kb")) unit = "kb";
-        else if (name.endsWith("_mb")) unit = "mb";
-        state.secondaryMetrics.push({ name, unit });
-      }
-    }
+    registerSecondaryMetrics(state, secondaryMetrics);
 
     const confidence = computeConfidence(state.results, state.currentSegment, state.bestDirection);
     experiment.confidence = confidence;

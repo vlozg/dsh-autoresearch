@@ -7,7 +7,7 @@
  * to auto-discard).
  */
 
-import type { RunEntry } from "./jsonl";
+import type { RunEntry } from "./model";
 
 const METRIC_LINE_PREFIX = "METRIC";
 const METRIC_LINE_REGEX = /^METRIC\s+([\w.µ]+)=(\S+)\s*$/gm;
@@ -143,4 +143,18 @@ export function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB`;
   return `${bytes}B`;
+}
+
+/** Best metric value in the current segment (positive values only). */
+export function bestMetric(
+  results: RunEntry[],
+  segment: number,
+  direction: "lower" | "higher",
+): number | null {
+  let best: number | null = null;
+  for (const r of currentResults(results, segment)) {
+    if (r.metric <= 0) continue;
+    if (best === null || isBetter(r.metric, best, direction)) best = r.metric;
+  }
+  return best;
 }
