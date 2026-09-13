@@ -6,9 +6,9 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
 
 **Agent tools**
 
-- `init_experiment` — create an experiment session (name, primary metric + unit + direction, optional round cap). Arms the plugin-side auto-resume loop (pi-style idle followups, not DSH goals).
+- `init_experiment` — create an experiment session (name, primary metric + unit + direction, optional display labels, optional round cap). Arms the plugin-side auto-resume loop (pi-style idle followups, not DSH goals).
 - `run_experiment` — run the benchmark command; captures METRIC lines, wall time, and output; gates on `.auto/checks.sh` when present.
-- `log_experiment` — record the result: keep (only when the primary metric improved), discard / crash / checks_failed (auto-revert), plus structured Side Information that survives reverts.
+- `log_experiment` — record the result: keep (only when the primary metric improved), discard / crash / checks_failed (auto-revert), optional title/summary for the dashboard, plus structured Side Information that survives reverts.
 
 **Web UI (better-sidebar)**
 
@@ -26,9 +26,9 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
 
 ## Layout
 
-- `src/host/` — plugin face: tools, experiment service, JSONL persistence, past-session detection (`detect.ts`), SSE/fence HTTP, skill (`autoresearch-create`), pi-style idle-resume hooks.
-- `src/client/` — client face: store (SSE), dashboard views, better-sidebar tab + auto-open, toolview registrations.
-- `tests/` — vitest suite (71 tests, 11 files).
+- `src/host/` — plugin face: plugin wiring (`index.ts`), tool schemas (`tools.ts`), and the experiment engine split three ways — `experiment.ts` (service: runtimes + SSE), `experiment-ops.ts` (init/run/log operations), `experiment-types.ts` (contracts) — plus JSONL persistence (`jsonl.ts`), past-session detection (`detect.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`, `hooks.ts`), and helpers (`run.ts`, `truncate.ts`, `metrics.ts`, `git.ts`, `paths.ts`).
+- `src/client/` — client face: SSE store (`store.ts`), overlay dashboard (`panel.tsx`), better-sidebar tab (`tab.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), shared atoms (`bits.tsx`), pure snapshot derivations (`derive.ts`), and text parsing/formatting (`parse.ts`, `format.ts`). Mount + registration in `index.ts`.
+- `tests/` — vitest suite (86 tests, 13 files), including direct coverage of the client's pure derivation layer.
 
 ## Dev
 
