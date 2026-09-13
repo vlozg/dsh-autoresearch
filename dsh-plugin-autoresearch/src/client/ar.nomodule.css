@@ -136,18 +136,31 @@
 /* ---- run rows ---- */
 .ar-runs { display: flex; flex-direction: column; gap: 6px; }
 .ar-run {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
   padding: 8px 10px;
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 10px;
   background: rgba(148, 163, 184, 0.05);
   min-width: 0;
 }
-.ar-run-no { font-weight: 700; font-size: 12.5px; color: #94a3b8; flex: none; min-width: 26px; }
+.ar-run.ar-open { background: rgba(148, 163, 184, 0.09); }
+.ar-run-head {
+  display: grid;
+  grid-template-columns: 34px 74px 58px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ar-run-no { font-weight: 700; font-size: 12.5px; color: #94a3b8; text-align: right; font-variant-numeric: tabular-nums; }
 .ar-chip {
-  flex: none;
+  justify-self: start;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -159,8 +172,34 @@
 .ar-chip.ar-discard { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .ar-chip.ar-crash { background: rgba(239, 68, 68, 0.16); color: #f87171; }
 .ar-chip.ar-checks { background: rgba(249, 115, 22, 0.16); color: #fb923c; }
-.ar-run-metric { flex: none; font-weight: 700; font-size: 13px; color: #f1f5f9; font-variant-numeric: tabular-nums; }
-.ar-run-desc { flex: 1; min-width: 0; font-size: 12px; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-metric { justify-self: end; font-weight: 700; font-size: 13px; color: #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ar-run-delta { font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-run-side { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; min-width: 0; }
+.ar-run-chev { font-size: 10px; color: #7d8da1; text-align: center; }
+.ar-run-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #cbd5e1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.ar-open .ar-run-desc { display: none; }
+.ar-run-desc { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ar-run-detail {
+  margin-top: 6px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.22);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ar-run-detail-desc { font-size: 12px; color: #e2e8f0; white-space: pre-wrap; word-break: break-word; }
+.ar-run-detail-row { display: flex; gap: 8px; font-size: 11.5px; }
+.ar-run-detail-k { flex: none; width: 92px; color: #7d8da1; }
+.ar-run-detail-v { flex: 1; min-width: 0; color: #cbd5e1; font-variant-numeric: tabular-nums; word-break: break-word; }
 .ar-run-meta { flex: none; font-size: 11px; color: #7d8da1; font-variant-numeric: tabular-nums; }
 .ar-conf { flex: none; font-size: 11px; color: #94a3b8; }
 .ar-conf.ar-strong { color: #4ade80; }
@@ -190,8 +229,8 @@
   .ar-float { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .ar-panel { right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 16px); max-height: 82vh; }
   .ar-stats { grid-template-columns: repeat(2, 1fr); }
-  .ar-run { flex-wrap: wrap; row-gap: 4px; }
-  .ar-run-desc { flex-basis: 100%; white-space: normal; }
+  .ar-run-head { grid-template-columns: 30px 66px 50px minmax(0, 1fr) auto 14px; gap: 6px; }
+  .ar-chip { padding: 2px 6px; }
 }
 
 /* ---- better-sidebar tab carrier ---- */

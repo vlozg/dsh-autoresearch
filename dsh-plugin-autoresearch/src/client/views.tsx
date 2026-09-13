@@ -114,18 +114,59 @@ function statCell(label: string, value: string, modifier?: string): ReactNode {
 
 function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry; now: number }): ReactNode {
   const { snapshot, entry, now } = props;
+  const [open, setOpen] = useState(false);
   const delta = bestDelta(snapshot, entry);
   const conf = entry.confidence;
   return (
-    <div className="ar-run">
-      <span className="ar-run-no">#{entry.run}</span>
-      <Chip status={entry.status} />
-      <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
-      {delta !== null ? <span className={"ar-run-meta" + (delta.indexOf("▼") >= 0 ? " ar-good-stat" : "")}>{delta}</span> : null}
-      <span className="ar-run-desc">{entry.description}</span>
-      {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}×</span> : null}
-      <span className="ar-run-meta">{formatAgo(entry.timestamp, now)}</span>
-      {entry.commit !== "" ? <span className="ar-run-meta">{entry.commit.slice(0, 7)}</span> : null}
+    <div className={"ar-run" + (open ? " ar-open" : "")}>
+      <button
+        type="button"
+        className="ar-run-head"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className="ar-run-no">#{entry.run}</span>
+        <Chip status={entry.status} />
+        <span className="ar-run-metric">{formatNum(entry.metric, snapshot.metricUnit)}</span>
+        {delta !== null
+          ? <span className={"ar-run-delta" + (delta.indexOf("\u25BC") >= 0 ? " ar-good-stat" : "")}>{delta}</span>
+          : <span className="ar-run-delta" />}
+        <span className="ar-run-side">
+          {conf !== null ? <span className={"ar-conf" + (conf >= 2 ? " ar-strong" : "")}>{conf.toFixed(1)}\u00D7</span> : null}
+          <span className="ar-run-meta">{formatAgo(entry.timestamp, now)}</span>
+        </span>
+        <span className="ar-run-chev" aria-hidden="true">{open ? "\u25BE" : "\u25B8"}</span>
+      </button>
+      <div className="ar-run-desc" onClick={() => setOpen((prev) => !prev)}>{entry.description}</div>
+      {open ? (
+        <div className="ar-run-detail">
+          <div className="ar-run-detail-desc">{entry.description}</div>
+          {snapshot.secondaryMetrics.map((def) => {
+            const value = entry.metrics[def.name];
+            if (typeof value !== "number" || !Number.isFinite(value)) return null;
+            return (
+              <div key={def.name} className="ar-run-detail-row">
+                <span className="ar-run-detail-k">{def.name}</span>
+                <span className="ar-run-detail-v">{formatNum(value, def.unit)}</span>
+              </div>
+            );
+          })}
+          <div className="ar-run-detail-row">
+            <span className="ar-run-detail-k">segment</span>
+            <span className="ar-run-detail-v">{entry.segment}</span>
+          </div>
+          <div className="ar-run-detail-row">
+            <span className="ar-run-detail-k">time</span>
+            <span className="ar-run-detail-v">{new Date(entry.timestamp).toLocaleString()}</span>
+          </div>
+          {entry.commit !== "" ? (
+            <div className="ar-run-detail-row">
+              <span className="ar-run-detail-k">commit</span>
+              <span className="ar-run-detail-v">{entry.commit}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
