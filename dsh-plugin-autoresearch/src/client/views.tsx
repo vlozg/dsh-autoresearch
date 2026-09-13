@@ -10,6 +10,7 @@ import { formatAgo, formatElapsed, formatNum } from "./format";
 import { parseInitText, parseLogText, parseRunText } from "./parse";
 import {
   type AutoresearchClientStore,
+  type AutoresearchView,
   type ExperimentSnapshot,
   type RunEntry,
   type SessionView,
@@ -46,6 +47,49 @@ function bestDelta(snapshot: ExperimentSnapshot, entry: RunEntry): string | null
   const sign = delta > 0 ? "+" : "";
   const better = snapshot.bestDirection === "lower" ? delta < 0 : delta > 0;
   return sign + pct + "%" + (better ? " ▼" : " ▲");
+}
+
+// ---------------------------------------------------------------------------
+// Past-session detection
+// ---------------------------------------------------------------------------
+
+/** "Detect past autoresearch sessions" button + discovered-session listing. */
+function DetectPanel(props: { store: AutoresearchClientStore; view: AutoresearchView; sessionId?: string }): ReactNode {
+  const { store, view } = props;
+  const detected = view.detected;
+  const unattached = detected?.unattached ?? [];
+  const attachedCount = detected?.attached.length ?? 0;
+  return (
+    <div className="ar-detect">
+      <button type="button" className="ar-btn" disabled={view.detecting} onClick={() => void store.detectPastSessions(props.sessionId)}>
+        {view.detecting ? "Scanning workspaces…" : "Detect past autoresearch sessions"}
+      </button>
+      {view.detectError !== null ? <div className="ar-note">⚠ {view.detectError}</div> : null}
+      {detected !== null && attachedCount > 0 ? (
+        <div className="ar-note">
+          Loaded {attachedCount === 1 ? "1 past session" : String(attachedCount) + " past sessions"} into the dashboard.
+        </div>
+      ) : null}
+      {detected !== null && unattached.length > 0 ? (
+        <div className="ar-detlist">
+          {unattached.map((item) => (
+            <div key={item.workDir} className="ar-detrow">
+              <span className="ar-detname">{item.name}</span>
+              <span className="ar-detmeta">
+                {item.runs} runs · {item.metricName}
+                {item.lastTimestamp !== null ? " · " + formatAgo(item.lastTimestamp, Date.now()) : ""}
+              </span>
+              <span className="ar-detpath">{item.workDir}</span>
+              <span className="ar-dethint">Open a conversation in this directory to continue it.</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {detected !== null && attachedCount === 0 && unattached.length === 0 && view.detectError === null ? (
+        <div className="ar-note">No past .auto/ sessions found near the open conversations.</div>
+      ) : null}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -216,9 +260,12 @@ export function DashboardEntry(props: DashboardEntryProps): ReactNode {
         </div>
         <div className="ar-body">
           {session === undefined ? (
-            <div className="ar-empty">
-              {view.subscribed ? "No experiment sessions yet. Ask the agent to run init_experiment." : "Connecting to the experiment feed…"}
-            </div>
+            <>
+              <div className="ar-empty">
+                {view.subscribed ? "No experiment sessions yet. Ask the agent to run init_experiment." : "Connecting to the experiment feed…"}
+              </div>
+              <DetectPanel store={store} view={view} />
+            </>
           ) : (
             <SessionPanel session={session} now={now} />
           )}
@@ -339,6 +386,7 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
             ? "No experiment sessions yet. Ask the agent to run init_experiment."
             : "Connecting to the experiment feed…"}
         </div>
+        <DetectPanel store={store} view={view} sessionId={props.scopeId} />
       </div>
     );
   }
@@ -369,6 +417,7 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
         </div>
       </div>
       <SessionPanel session={session} now={now} />
+      <DetectPanel store={store} view={view} sessionId={props.scopeId} />
       {actionError !== null ? <div className="ar-note">⚠ {actionError}</div> : null}
       <div className="ar-actions ar-tabfoot">
         {session.snapshot.running !== null ? (

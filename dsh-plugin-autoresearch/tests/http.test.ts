@@ -22,10 +22,11 @@ function fakeService() {
     subscribe: (_fn: unknown) => () => {},
     stopExperiment: (_id: string) => true,
     setLoop: (_id: string, on: boolean, _reason?: string) => on,
+    detect: (_sessionId?: string) => ({ attached: [{ sessionId: "s1" }], unattached: [{ workDir: "/tmp/past" }] }),
   };
 }
 
-function makePair(reqSpec: RecordedRequest): { req: IncomingMessage; res: ServerResponse; out: RecordedResponse } {
+function makePair(reqSpec: RecordedRequest): { req: IncomingMessage; res: ServerResponse; out: RecordedResponse; emit: () => void } {
   const out: RecordedResponse = { status: null, headers: {}, body: "", ended: false };
   const listeners = new Map<string, (chunk: unknown) => void>();
   const req = {
@@ -62,7 +63,45 @@ function makePair(reqSpec: RecordedRequest): { req: IncomingMessage; res: Server
 
 const LOOPBACK = { host: "127.0.0.1:3080" };
 
-async function drive(_handler: unknown, reqSpec: RecordedRequest): Promise<RecordedResponse> {
+describe("GET /autoresearch/detect", () => {
+  it("answers with the detect result", async () => {
+    const out = await drive(() => {}, { headers: LOOPBACK, method: "GET", url: "/autoresearch/detect" });
+    expect(out.status).toBe(200);
+    expect(out.ended).toBe(true);
+    expect(JSON.parse(out.body)).toEqual({
+      attached: [{ sessionId: "s1" }],
+      unattached: [{ workDir: "/tmp/past" }],
+    });
+  });
+
+  it("scopes the scan when sessionId is given", async () => {
+    const seen: (string | undefined)[] = [];
+    const service = {
+      ...fakeService(),
+      detect: (sessionId?: string) => {
+        seen.push(sessionId);
+        return { attached: [], unattached: [], scoped: sessionId ?? null };
+      },
+    };
+    const out = await drive(() => {}, { headers: LOOPBACK, method: "GET", url: "/autoresearch/detect?sessionId=s2" }, service);
+    expect(out.status).toBe(200);
+    const body = JSON.parse(out.body) as { scoped: string | null };
+    expect(body.scoped).toBe("s2");
+    expect(seen).toEqual(["s2"]);
+  });
+
+  it("still answers inside the scan when the fence passes", async () => {
+    const out = await drive(() => {}, {
+      headers: { ...LOOPBACK, origin: "http://127.0.0.1:3080", "sec-fetch-site": "same-origin" },
+      method: "GET",
+      url: "/autoresearch/detect?sessionId=s1",
+    });
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body)).toHaveProperty("attached");
+  });
+});
+
+async function drive(_handler: unknown, reqSpec: RecordedRequest, service: ReturnType<typeof fakeService> = fakeService()): Promise<RecordedResponse> {
   const routes = new Map<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>>();
   const webServer = {
     register: (route: { path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => {
@@ -70,7 +109,7 @@ async function drive(_handler: unknown, reqSpec: RecordedRequest): Promise<Recor
       return () => {};
     },
   };
-  registerAutoResearchHttp({ get: (name: string) => (name === "webServer" ? webServer : undefined) } as never, fakeService() as never);
+  registerAutoResearchHttp({ get: (name: string) => (name === "webServer" ? webServer : undefined) } as never, service as never);
   const handler = routes.get(reqSpec.url.split("?")[0]);
   if (handler === undefined) throw new Error(`no route registered for ${reqSpec.url}`);
   const { req, res, out, emit } = makePair(reqSpec);

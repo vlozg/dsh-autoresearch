@@ -221,3 +221,21 @@
 .ar-line { font-size: 12.5px; }
 .ar-line .ar-dim { opacity: 0.65; }
 .ar-git { font-size: 12px; opacity: 0.85; font-variant-numeric: tabular-nums; }
+
+/* ---- past-session detection ---- */
+.ar-detect { display: flex; flex-direction: column; gap: 8px; flex: none; margin-top: 2px; }
+.ar-detect .ar-btn { align-self: flex-start; }
+.ar-detlist { display: flex; flex-direction: column; gap: 6px; }
+.ar-detrow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.05);
+}
+.ar-detname { font-weight: 650; font-size: 12.5px; color: #f1f5f9; }
+.ar-detmeta { font-size: 11.5px; color: #94a3b8; }
+.ar-detpath { font-size: 11px; color: #8ea0b5; word-break: break-all; }
+.ar-dethint { font-size: 11px; color: #64748b; font-style: italic; }

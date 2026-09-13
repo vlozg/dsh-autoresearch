@@ -15,18 +15,20 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
 - An "Autoresearch" tab in the right sidebar (flask icon, badge with run state) that auto-opens when the active conversation gains an experiment session.
 - Dashboard: session card (metric, direction, segment, workdir), BEST / BASELINE / CONFIDENCE / RUNS, per-run history, live running-tail output, Stop loop / Resume loop.
 - Toolview cards replace the raw JSON for `init_experiment` / `run_experiment` / `log_experiment` calls in the conversation.
+- **Detect past autoresearch sessions** — a button in the dashboard (empty state, tab body, and overlay) that scans the workdirs of open conversations plus their sibling projects for existing `.auto/` trees (pi-created ones included). Workdirs that match a live conversation attach eagerly — the card appears via SSE without any tool call; the rest are listed as read-only history with name · runs · last activity · path and a hint to open a conversation in that directory.
 
 **Local HTTP** (same-origin only; cross-site `sec-fetch-site` and non-JSON POSTs are refused)
 
 - `GET /autoresearch/state?sessionId=` — one-shot snapshot
 - `GET /autoresearch/events` — SSE: named `state` / `running` events, 15 s heartbeat
+- `GET /autoresearch/detect?sessionId=` — past-session scan; returns `{ attached, unattached }` (shallow `.auto/` scan around live conversations' workdirs, depth 2, skips hidden/dependency dirs)
 - `POST /autoresearch/stop` / `POST /autoresearch/resume` — loop + run control (JSON body)
 
 ## Layout
 
-- `src/host/` — plugin face: tools, experiment service, JSONL persistence, SSE/fence HTTP, skill (`autoresearch-create`), pi-style idle-resume hooks.
+- `src/host/` — plugin face: tools, experiment service, JSONL persistence, past-session detection (`detect.ts`), SSE/fence HTTP, skill (`autoresearch-create`), pi-style idle-resume hooks.
 - `src/client/` — client face: store (SSE), dashboard views, better-sidebar tab + auto-open, toolview registrations.
-- `tests/` — vitest suite (59 tests, 10 files).
+- `tests/` — vitest suite (71 tests, 11 files).
 
 ## Dev
 

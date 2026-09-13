@@ -3,6 +3,7 @@
  *
  *   GET  /autoresearch/state    one-shot snapshot (?sessionId= filters)
  *   GET  /autoresearch/events   SSE push of snapshots + running tails
+ *   GET  /autoresearch/detect   past-session scan (?sessionId= scopes one cwd)
  *   POST /autoresearch/stop     abort the running experiment + loop off
  *   POST /autoresearch/resume   re-arm the loop
  *
@@ -120,6 +121,21 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
       path: "/autoresearch/state",
       handler: (req, res) => {
         statePayload(req, res, service);
+      },
+    }),
+  );
+
+  // Past-session detection: shallow .auto/ scan around live conversations'
+  // workdirs; matching workdirs attach eagerly (cards arrive via SSE).
+  disposers.push(
+    webServer.register({
+      kind: "exact",
+      path: "/autoresearch/detect",
+      handler: (req, res) => {
+        if (fenceRejected(req, res)) return;
+        const url = new URL(req.url ?? "/autoresearch/detect", "http://" + (req.headers.host ?? "localhost"));
+        const sessionId = url.searchParams.get("sessionId") ?? undefined;
+        sendJson(res, 200, service.detect(sessionId));
       },
     }),
   );

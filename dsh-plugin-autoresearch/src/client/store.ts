@@ -75,20 +75,82 @@ export interface SessionView {
   tail: string | undefined;
 }
 
+/** One discovered past/live autoresearch session (host /detect shape). */
+export interface DetectedSession {
+  sessionId: string | null;
+  workDir: string;
+  name: string;
+  metricName: string;
+  metricUnit: string;
+  bestDirection: "lower" | "higher";
+  currentSegment: number;
+  runs: number;
+  bestMetric: number | null;
+  lastTimestamp: number | null;
+}
+
+export interface DetectResult {
+  attached: DetectedSession[];
+  unattached: DetectedSession[];
+}
+
 export interface AutoresearchView {
   readonly sessions: readonly SessionView[];
   readonly subscribed: boolean;
+  /** Last detect scan result; null until the first scan. */
+  readonly detected: DetectResult | null;
+  readonly detecting: boolean;
+  readonly detectError: string | null;
 }
 
 const EVENTS_URL = "/autoresearch/events";
+const DETECT_URL = "/autoresearch/detect";
 const STOP_URL = "/autoresearch/stop";
 const RESUME_URL = "/autoresearch/resume";
+
+/** Defensive parse of the /detect payload (browser-side, host may be older). */
+function parseDetectResult(value: unknown): DetectResult | null {
+  if (value === null || typeof value !== "object") return null;
+  const raw = value as { attached?: unknown; unattached?: unknown };
+  const parseList = (input: unknown): DetectedSession[] => {
+    if (!Array.isArray(input)) return [];
+    const out: DetectedSession[] = [];
+    for (const item of input) {
+      if (item === null || typeof item !== "object") continue;
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.workDir !== "string" || typeof entry.name !== "string") continue;
+      out.push({
+        sessionId: typeof entry.sessionId === "string" ? entry.sessionId : null,
+        workDir: entry.workDir,
+        name: entry.name,
+        metricName: typeof entry.metricName === "string" ? entry.metricName : "metric",
+        metricUnit: typeof entry.metricUnit === "string" ? entry.metricUnit : "",
+        bestDirection: entry.bestDirection === "higher" ? "higher" : "lower",
+        currentSegment: typeof entry.currentSegment === "number" ? entry.currentSegment : 0,
+        runs: typeof entry.runs === "number" ? entry.runs : 0,
+        bestMetric: typeof entry.bestMetric === "number" ? entry.bestMetric : null,
+        lastTimestamp: typeof entry.lastTimestamp === "number" ? entry.lastTimestamp : null,
+      });
+    }
+    return out;
+  };
+  return { attached: parseList(raw.attached), unattached: parseList(raw.unattached) };
+}
 
 export class AutoresearchClientStore {
   private readonly bySession = new Map<string, SessionView>();
   private listeners = new Set<() => void>();
   private events: EventSourceLike | undefined;
-  private snapshot: AutoresearchView = { sessions: [], subscribed: false };
+  private detected: DetectResult | null = null;
+  private detecting = false;
+  private detectError: string | null = null;
+  private snapshot: AutoresearchView = {
+    sessions: [],
+    subscribed: false,
+    detected: null,
+    detecting: false,
+    detectError: null,
+  };
   private started = false;
   private holders = 0;
 
@@ -111,7 +173,13 @@ export class AutoresearchClientStore {
       const lastB = b.snapshot.runs[b.snapshot.runs.length - 1]?.timestamp ?? 0;
       return lastB - lastA;
     });
-    this.snapshot = { sessions, subscribed: this.events !== undefined };
+    this.snapshot = {
+      sessions,
+      subscribed: this.events !== undefined,
+      detected: this.detected,
+      detecting: this.detecting,
+      detectError: this.detectError,
+    };
     for (const listener of [...this.listeners]) listener();
   }
 
@@ -188,6 +256,9 @@ export class AutoresearchClientStore {
     this.events = undefined;
     previous?.close();
     this.bySession.clear();
+    this.detected = null;
+    this.detecting = false;
+    this.detectError = null;
     this.publish();
   }
 
@@ -203,6 +274,36 @@ export class AutoresearchClientStore {
       return { ok: false, error: body !== null && typeof body.error === "string" ? body.error : "request failed" };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Scan for past autoresearch sessions around the open conversations'
+   * workdirs. Attached workdirs appear as cards through the SSE stream; the
+   * raw result is kept in the view for the unattached listing.
+   */
+  async detectPastSessions(sessionId?: string): Promise<void> {
+    if (this.detecting) return;
+    this.detecting = true;
+    this.detectError = null;
+    this.publish();
+    try {
+      const suffix = sessionId !== undefined && sessionId !== ""
+        ? "?sessionId=" + encodeURIComponent(sessionId)
+        : "";
+      const response = await this.deps.fetchFn(DETECT_URL + suffix);
+      if (!response.ok) {
+        this.detectError = "detection failed — is the host bundle current? (restart DSH to pick up the detect route)";
+      } else {
+        const parsed = parseDetectResult(await response.json());
+        if (parsed === null) this.detectError = "unexpected detection response";
+        else this.detected = parsed;
+      }
+    } catch (error) {
+      this.detectError = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.detecting = false;
+      this.publish();
     }
   }
 

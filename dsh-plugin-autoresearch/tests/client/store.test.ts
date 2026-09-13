@@ -86,7 +86,7 @@ describe("AutoresearchClientStore", () => {
     expect(store.getSnapshot().subscribed).toBe(true);
     expect(source.closed).toBe(false);
     release();
-    expect(store.getSnapshot()).toEqual({ sessions: [], subscribed: false });
+    expect(store.getSnapshot()).toEqual({ sessions: [], subscribed: false, detected: null, detecting: false, detectError: null });
     expect(source.closed).toBe(true);
   });
 
@@ -168,6 +168,60 @@ describe("AutoresearchClientStore", () => {
     expect(calls[0].url).toBe("/autoresearch/stop");
     expect(calls[0].init?.body).toBe('{"sessionId":"s1"}');
     expect(calls[1].url).toBe("/autoresearch/resume");
+    release();
+  });
+
+  it("detectPastSessions stores the parsed scan result", async () => {
+    const source: FakeSource = { listeners: new Map(), onerror: null, closed: false };
+    const like: EventSourceLike = {
+      addEventListener(type, listener) { source.listeners.set(type, listener); },
+      set onerror(handler) { source.onerror = handler; },
+      get onerror() { return source.onerror; },
+      close() { source.closed = true; },
+    };
+    const calls: string[] = [];
+    const store = new AutoresearchClientStore({
+      fetchFn: async (url) => {
+        calls.push(url);
+        return {
+          ok: true,
+          json: async () => ({
+            attached: [{ sessionId: "s1", workDir: "/live", name: "Live", metricName: "total_ms", metricUnit: "ms", bestDirection: "lower", currentSegment: 0, runs: 1, bestMetric: 5, lastTimestamp: 20 }],
+            unattached: [{ sessionId: null, workDir: "/past", name: "Past", metricName: "total_ms", metricUnit: "ms", bestDirection: "lower", currentSegment: 0, runs: 3, bestMetric: 2, lastTimestamp: 10 }],
+          }),
+        };
+      },
+      eventSourceFactory: () => like,
+    });
+    const release = store.hold();
+    await store.detectPastSessions("s1");
+    expect(calls).toEqual(["/autoresearch/detect?sessionId=s1"]);
+    const view = store.getSnapshot();
+    expect(view.detecting).toBe(false);
+    expect(view.detectError).toBeNull();
+    expect(view.detected?.attached).toHaveLength(1);
+    expect(view.detected?.unattached[0].name).toBe("Past");
+    release();
+    expect(store.getSnapshot().detected).toBeNull();
+  });
+
+  it("detectPastSessions records failures without throwing", async () => {
+    const source: FakeSource = { listeners: new Map(), onerror: null, closed: false };
+    const like: EventSourceLike = {
+      addEventListener(type, listener) { source.listeners.set(type, listener); },
+      set onerror(handler) { source.onerror = handler; },
+      get onerror() { return source.onerror; },
+      close() { source.closed = true; },
+    };
+    const store = new AutoresearchClientStore({
+      fetchFn: async () => ({ ok: false, json: async () => ({ error: "nope" }) }),
+      eventSourceFactory: () => like,
+    });
+    const release = store.hold();
+    await expect(store.detectPastSessions()).resolves.toBeUndefined();
+    const view = store.getSnapshot();
+    expect(view.detecting).toBe(false);
+    expect(view.detectError).toBe("detection failed — is the host bundle current? (restart DSH to pick up the detect route)");
     release();
   });
 });
