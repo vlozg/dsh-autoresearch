@@ -4,40 +4,18 @@
  * no runtime dependencies beyond the domain model.
  */
 
-import type { ExperimentState, MetricDef, RunEntry } from "../domain/model";
+import type { ExperimentState } from "../domain/model";
+import type { DetectedSession, RunningExperiment } from "../../shared/wire";
 
-export type AutoResearchEvent =
-  | { kind: "state"; sessionId: string; snapshot: ExperimentSnapshot }
-  | { kind: "running"; sessionId: string; running: RunningExperiment; tail?: string };
-
-export interface RunningExperiment {
-  command: string;
-  startedAt: number;
-  phase: "running" | "checks";
-}
-
-export interface ExperimentSnapshot {
-  sessionId: string;
-  workDir: string;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  bestDirection: "lower" | "higher";
-  metricLabel: string | null;
-  objectiveLabel: string | null;
-  currentSegment: number;
-  maxExperiments: number | null;
-  baseline: number | null;
-  bestMetric: number | null;
-  confidence: number | null;
-  runs: RunEntry[];
-  secondaryMetrics: MetricDef[];
-  running: RunningExperiment | null;
-  loop: boolean;
-  loopStopReason: string | null;
-  experimentsThisSession: number;
-  autoResumeTurns: number;
-}
+// Wire shapes (events, snapshots, detect) live in src/shared/wire.ts and are
+// re-exported here — one definition, typechecker-shared with the client.
+export type {
+  AutoResearchEvent,
+  DetectedSession,
+  DetectResult,
+  ExperimentSnapshot,
+  RunningExperiment,
+} from "../../shared/wire";
 
 export interface InitParams {
   name: string;
@@ -98,26 +76,4 @@ export interface PluginConfig {
   autoActivateLoop: boolean;
 }
 
-/** One discovered (past or live) autoresearch session. */
-export interface DetectedSession {
-  /** Live agent/session id when the workdir belongs to an open conversation. */
-  sessionId: string | null;
-  workDir: string;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  bestDirection: "lower" | "higher";
-  metricLabel: string | null;
-  objectiveLabel: string | null;
-  currentSegment: number;
-  runs: number;
-  bestMetric: number | null;
-  lastTimestamp: number | null;
-}
-
-export interface DetectResult {
-  /** Workdirs now attached to a live conversation (cards appear via SSE). */
-  attached: DetectedSession[];
-  /** Past sessions with no live conversation in their workdir. */
-  unattached: DetectedSession[];
-}
+// DetectedSession/DetectResult come from the wire contract (re-exported above).

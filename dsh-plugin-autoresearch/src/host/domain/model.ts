@@ -3,7 +3,15 @@
  * state fold over entries. Hexagonal domain layer: no node imports, no DSH
  * imports. The JSONL byte format lives in the fs-log-store adapter; any
  * persistence adapter must preserve these types and fold rules.
+ *
+ * RunEntry/MetricDef are the wire definitions from src/shared/wire.ts (the
+ * log entries are exactly what crosses JSON boundaries); re-exported here
+ * so the domain keeps importing from `./model`.
  */
+
+import type { MetricDef, RunEntry } from "../../shared/wire";
+
+export type { MetricDef, RunEntry };
 
 export const AUTO_DIR = ".auto";
 
@@ -17,26 +25,6 @@ export interface ConfigHeader {
   bestDirection?: "lower" | "higher";
   metricLabel?: string;
   objectiveLabel?: string;
-}
-
-export interface RunEntry {
-  run: number;
-  commit: string;
-  metric: number;
-  metrics: Record<string, number>;
-  status: "keep" | "discard" | "crash" | "checks_failed";
-  description: string;
-  title?: string;
-  summary?: string;
-  timestamp: number;
-  segment: number;
-  confidence: number | null;
-  asi?: Record<string, unknown>;
-}
-
-export interface MetricDef {
-  name: string;
-  unit: string;
 }
 
 /** In-memory experiment state folded from the log entries. */

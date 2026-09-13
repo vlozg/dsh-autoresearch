@@ -32,7 +32,8 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
   - `adapters/` — node implementations of the ports: `fs-log-store.ts` (`.auto/` paths + store), `jsonl.ts`, `node-git.ts`, `child-runner.ts`, `shell-hooks.ts`, `system-clock.ts`, `fs-scanner.ts` (past-session scan), `truncate.ts`; `index.ts` exports `nodeServiceDeps()`, the ready-made kit.
   - `infra/` — DSH-facing edges: tool schemas (`tools.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`).
   - `index.ts` — composition root: wires `nodeServiceDeps()` into the service.
-- `src/client/` — client face: SSE store (`store.ts`), overlay dashboard (`panel.tsx`), better-sidebar tab (`tab.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), shared atoms (`bits.tsx`), pure snapshot derivations (`derive.ts`), and text parsing/formatting (`parse.ts`, `format.ts`). Mount + registration in `index.ts`.
+- `src/shared/` — `wire.ts`, the typechecker-shared host↔client contract (SSE events, snapshots, detect scan): both faces `import type` — drift fails the build, not the dashboard.
+- `src/client/` — client face: SSE store (`store.ts`, wire types re-exported from `src/shared/wire.ts`), overlay dashboard (`panel.tsx`), better-sidebar tab (`tab.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), shared atoms (`bits.tsx`), pure snapshot derivations (`derive.ts`), and text parsing/formatting (`parse.ts`, `format.ts`). Mount + registration in `index.ts`.
 - `tests/` — vitest suite (86 tests, 13 files), including direct coverage of the client's pure derivation layer.
 
 ## Dev

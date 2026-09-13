@@ -1,62 +1,29 @@
 /**
  * Client-side data layer for the autoresearch dashboard: one SSE stream
  * carrying state snapshots and running tails, plus the stop/resume actions.
- * Mirrors the host contract in src/host/experiment.ts (structural types only,
- * no host imports — the client bundle stays platform-pure).
+ * Wire shapes come from src/shared/wire.ts — the typechecker-shared host↔client
+ * contract (type-only imports, erased at build: the client bundle stays
+ * platform-pure with zero runtime coupling to the host hexagon).
  */
 
-export interface RunEntry {
-  run: number;
-  commit: string;
-  metric: number;
-  metrics: Record<string, number>;
-  status: "keep" | "discard" | "crash" | "checks_failed";
-  description: string;
-  title?: string;
-  summary?: string;
-  timestamp: number;
-  segment: number;
-  confidence: number | null;
-  asi?: Record<string, unknown>;
-}
+import type {
+  AutoResearchEvent,
+  DetectedSession,
+  DetectResult,
+  ExperimentSnapshot,
+  RunningExperiment,
+} from "../shared/wire";
 
-export interface MetricDef {
-  name: string;
-  unit: string;
-}
-
-export interface RunningExperiment {
-  command: string;
-  startedAt: number;
-  phase: "running" | "checks";
-}
-
-export interface ExperimentSnapshot {
-  sessionId: string;
-  workDir: string;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  bestDirection: "lower" | "higher";
-  metricLabel: string | null;
-  objectiveLabel: string | null;
-  currentSegment: number;
-  maxExperiments: number | null;
-  baseline: number | null;
-  bestMetric: number | null;
-  confidence: number | null;
-  runs: RunEntry[];
-  secondaryMetrics: MetricDef[];
-  running: RunningExperiment | null;
-  loop: boolean;
-  loopStopReason: string | null;
-  experimentsThisSession: number;
-  autoResumeTurns: number;
-}
-
-export type AutoResearchEvent =
-  | { kind: "state"; sessionId: string; snapshot: ExperimentSnapshot }
-  | { kind: "running"; sessionId: string; running: RunningExperiment; tail?: string };
+// Re-exported for the view layer and tests (the client's public type surface).
+export type {
+  AutoResearchEvent,
+  DetectedSession,
+  DetectResult,
+  ExperimentSnapshot,
+  MetricDef,
+  RunEntry,
+  RunningExperiment,
+} from "../shared/wire";
 
 export interface EventSourceLike {
   addEventListener(type: string, listener: (event: { data: string }) => void): void;
@@ -77,27 +44,6 @@ export interface AutoresearchClientDeps {
 export interface SessionView {
   snapshot: ExperimentSnapshot;
   tail: string | undefined;
-}
-
-/** One discovered past/live autoresearch session (host /detect shape). */
-export interface DetectedSession {
-  sessionId: string | null;
-  workDir: string;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  bestDirection: "lower" | "higher";
-  metricLabel: string | null;
-  objectiveLabel: string | null;
-  currentSegment: number;
-  runs: number;
-  bestMetric: number | null;
-  lastTimestamp: number | null;
-}
-
-export interface DetectResult {
-  attached: DetectedSession[];
-  unattached: DetectedSession[];
 }
 
 export interface AutoresearchView {
@@ -215,8 +161,13 @@ export class AutoresearchClientStore {
     const stateHandler = (message: { data: string }): void => {
       if (!this.started || this.events !== events) return;
       try {
-        const event = JSON.parse(message.data) as AutoResearchEvent;
-        if (event.kind === "state") this.applyState(event.sessionId, event.snapshot);
+        const value: unknown = JSON.parse(message.data);
+        if (value === null || typeof value !== "object") return;
+        // Narrow the kind discriminant before trusting the payload; unknown
+        // kinds (newer host) are ignored, not rejected (version skew).
+        if ((value as { kind?: unknown }).kind !== "state") return;
+        const event = value as Extract<AutoResearchEvent, { kind: "state" }>;
+        this.applyState(event.sessionId, event.snapshot);
       } catch {
         // Malformed frame: ignore, the stream self-heals on reconnect.
       }
@@ -225,8 +176,11 @@ export class AutoresearchClientStore {
     const runningHandler = (message: { data: string }): void => {
       if (!this.started || this.events !== events) return;
       try {
-        const event = JSON.parse(message.data) as AutoResearchEvent;
-        if (event.kind === "running") this.applyRunning(event.sessionId, event.running, event.tail);
+        const value: unknown = JSON.parse(message.data);
+        if (value === null || typeof value !== "object") return;
+        if ((value as { kind?: unknown }).kind !== "running") return;
+        const event = value as Extract<AutoResearchEvent, { kind: "running" }>;
+        this.applyRunning(event.sessionId, event.running, event.tail);
       } catch {
         // Ignore malformed frames.
       }
