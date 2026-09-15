@@ -1,0 +1,3 @@
+[submodule "refs/pi-autoresearch"]
+	path = refs/pi-autoresearch
+	url = https://github.com/davebcn87/pi-autoresearch

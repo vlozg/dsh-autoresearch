@@ -3,10 +3,14 @@
 Autonomous experiment loop for DSH (port of [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch)),
 with a live **better-sidebar** tab for navigating, monitoring, and reviewing experiment results.
 
-References (cloned under `refs/`, gitignored):
-- `refs/pi-autoresearch` — the original pi extension (tools + auto-resume loop + dashboard).
+References:
+- `refs/pi-autoresearch` — the original pi extension (tools + auto-resume loop + dashboard), kept as
+  a git submodule of `davebcn87/pi-autoresearch` (note: `nicobailon/pi-autoresearch` is a *fork* of
+  it) and pinned at `939ede8` — the revision this port was written against. Run
+  `git submodule update --init` after cloning; bump the pin deliberately when porting newer work.
 - `refs/BrowserSkill` — Tencent/BrowserSkill, `packages/dsh-plugin-browserskill` is the reference
   for a full-featured DSH tool plugin (tools + skill + SSE routes + sidebar integration).
+  Not vendored (gitignored): `git clone https://github.com/Tencent/BrowserSkill refs/BrowserSkill`.
 - installed sidebar: `dsh-better-sidebar@0.18.0` — https://github.com/omdsh-dev/DSH-better-sidebar
   (installed in `~/.dsh/profiles/web` as a bundle; exposes `ctx.betterSidebar` service).
 
