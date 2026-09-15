@@ -10,7 +10,7 @@ import { AUTO_DIR } from "../domain/model";
 import { currentResults, findBaselineMetric, formatNum, parseMetricLines, type MetricMap } from "../domain/metrics";
 import { isMeasureCommand } from "../domain/rules";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, LLM_MAX_BYTES, LLM_MAX_LINES } from "./ports";
-import { formatSize, truncateTail } from "../adapters/truncate";
+import { formatSize, truncateTail } from "./truncate";
 import type { RunParams, SessionRuntime, ToolOutcome } from "./contracts";
 
 export async function runExperimentOp(

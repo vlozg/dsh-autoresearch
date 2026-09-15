@@ -22,6 +22,7 @@
   "main": "./lib/index.mjs",
   "files": [
     "lib",
+    "docs",
     "README.md",
     "cordis.patch.yml"
   ],

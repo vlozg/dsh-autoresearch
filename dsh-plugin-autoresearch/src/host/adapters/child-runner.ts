@@ -13,7 +13,7 @@ import * as path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { WriteStream } from "node:fs";
 import type { CommandRunner, RunCommandOptions, TimedRunResult } from "../app/ports";
-import { truncateTail } from "./truncate";
+import { truncateTail } from "../app/truncate";
 
 
 

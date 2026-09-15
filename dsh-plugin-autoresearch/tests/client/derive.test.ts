@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bestDelta, loopState, sessionSubtitle } from "../../src/client/entities/derive";
-import type { ExperimentSnapshot, RunEntry } from "../../src/client/features/dashboard/store";
+import type { ExperimentSnapshot, RunEntry } from "../../src/client/shared/wire";
 
 const run = (n: number, metric: number, status: RunEntry["status"], segment: number, ts: number): RunEntry => ({
   run: n, commit: "abcd1234", metric, metrics: {}, status, description: "d", timestamp: ts, segment, confidence: null,

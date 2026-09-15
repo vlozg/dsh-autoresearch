@@ -6,7 +6,7 @@
 
 import { spawn } from "node:child_process";
 import { hookScriptPath } from "./fs-log-store";
-import { truncateAtBoundary } from "./truncate";
+import { truncateAtBoundary } from "../app/truncate";
 import type { HookPayload, HookRunner, SessionSnapshot } from "../app/ports";
 
 const HOOK_TIMEOUT_MS = 30_000;

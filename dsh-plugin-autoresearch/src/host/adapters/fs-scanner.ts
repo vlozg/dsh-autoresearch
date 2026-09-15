@@ -11,13 +11,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { DetectedSession } from "../app/contracts";
+import { DETECT_SCAN_DEPTH } from "../app/ports";
 import { sessionFilePath } from "./fs-log-store";
 import { reconstructState } from "./jsonl";
 
 export type { DetectedSession };
-
-/** How deep below a scan root the `.auto/` hunt descends. */
-export const SCAN_DEPTH = 2;
 
 /** Directories the scan never enters (dependency / build / VCS noise). */
 const SKIP_DIRS = new Set([
@@ -46,7 +44,7 @@ function* walkWorkdirs(root: string, depth: number): Generator<string> {
  * All directories under `root` (inclusive, `SCAN_DEPTH` deep) that contain
  * `.auto/log.jsonl`. Symlinks and hidden/dependency directories are skipped.
  */
-export function findAutoWorkdirs(root: string, depth: number = SCAN_DEPTH): string[] {
+export function findAutoWorkdirs(root: string, depth: number = DETECT_SCAN_DEPTH): string[] {
   const found: string[] = [];
   for (const dir of walkWorkdirs(root, depth)) {
     try {
@@ -97,9 +95,4 @@ export function summarizeWorkdir(workDir: string): DetectedSession | null {
     bestMetric: best,
     lastTimestamp: last !== undefined ? last.timestamp : null,
   };
-}
-
-/** Newest activity first; sessions without runs sort last. */
-export function byRecency(a: DetectedSession, b: DetectedSession): number {
-  return (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0);
 }

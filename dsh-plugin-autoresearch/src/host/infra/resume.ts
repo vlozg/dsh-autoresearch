@@ -18,7 +18,6 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { boundContextSummary, createUserMessage } from "@deepseek-ai/dsh-llm";
 import { ExperimentService } from "../app/experiment-service";
-import { formatElapsed } from "../domain/metrics";
 import type { SessionRuntime } from "../app/experiment-service";
 import { autoResumeStopReason } from "../domain/resume-policy";
 
@@ -191,5 +190,3 @@ export class AutoResumeInjector {
     return SETTLED_WINDOW_MS;
   }
 }
-
-void formatElapsed;

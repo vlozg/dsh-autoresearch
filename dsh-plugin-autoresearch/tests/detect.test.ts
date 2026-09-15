@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { ExperimentService, type PluginConfig } from "../src/host/app/experiment-service";
-import { byRecency, findAutoWorkdirs, summarizeWorkdir, type DetectedSession } from "../src/host/adapters/fs-scanner";
+import { findAutoWorkdirs, summarizeWorkdir } from "../src/host/adapters/fs-scanner";
 import { nodeServiceDeps } from "../src/host/adapters";
 import { inject as pluginInject } from "../src/host/index";
 import type { Agent } from "@deepseek-ai/dsh-agent";
@@ -159,12 +159,27 @@ describe("plugin inject contract", () => {
   });
 });
 
-describe("byRecency", () => {
-  it("sorts newest first, runless sessions last", () => {
-    const a: DetectedSession = { sessionId: null, workDir: "/a", name: "a", metricName: "m", metricUnit: "", bestDirection: "lower", metricLabel: null, objectiveLabel: null, currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 100 };
-    const b: DetectedSession = { sessionId: null, workDir: "/b", name: "b", metricName: "m", metricUnit: "", bestDirection: "lower", metricLabel: null, objectiveLabel: null, currentSegment: 0, runs: 1, bestMetric: 1, lastTimestamp: 200 };
-    const none: DetectedSession = { ...a, workDir: "/n", lastTimestamp: null };
-    expect([a, b].sort(byRecency).map((s) => s.workDir)).toEqual(["/b", "/a"]);
-    expect([none, a].sort(byRecency).map((s) => s.workDir)).toEqual(["/a", "/n"]);
+describe("ExperimentService.detect ordering", () => {
+  it("lists unattached sessions newest first, runless sessions last", () => {
+    const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ar-order-")));
+    const ws = path.join(base, "ws");
+    const projOld = path.join(ws, "old");
+    const projNew = path.join(ws, "new");
+    const projRunless = path.join(ws, "runless");
+    writeLog(projOld, [configHeader("Old"), runEntry(1, 100, 1000)]);
+    writeLog(projNew, [configHeader("New"), runEntry(1, 50, 2000)]);
+    writeLog(projRunless, [configHeader("Runless")]);
+    const agent = fakeAgent("a1", ws);
+    const service = new ExperimentService(
+      { agents: { list: () => [agent] } } as never,
+      CONFIG,
+      nodeServiceDeps(),
+    );
+
+    const result = service.detect();
+
+    expect(result.attached).toEqual([]);
+    expect(result.unattached.map((s) => s.workDir)).toEqual([projNew, projOld, projRunless]);
+    fs.rmSync(base, { recursive: true, force: true });
   });
 });

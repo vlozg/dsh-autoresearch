@@ -140,3 +140,6 @@ export const DEFAULT_MAX_LINES = 40;
 export const DEFAULT_MAX_BYTES = 32 * 1024; // 32KB display budget
 export const LLM_MAX_LINES = 10;
 export const LLM_MAX_BYTES = 4 * 1024; // 4KB context budget
+
+/** How deep below a scan root detect()'s `.auto/` hunt descends. */
+export const DETECT_SCAN_DEPTH = 2;

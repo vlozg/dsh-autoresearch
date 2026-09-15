@@ -14,7 +14,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { Context } from "@deepseek-ai/cordis";
 import * as path from "node:path";
-import { byRecency, findAutoWorkdirs, summarizeWorkdir, SCAN_DEPTH } from "../adapters/fs-scanner";
+import { DETECT_SCAN_DEPTH } from "./ports";
 import type { DetectResult, DetectedSession, LogStore, ServiceDeps } from "./ports";
 import { bestMetric, computeConfidence, findBaselineMetric } from "../domain/metrics";
 import { initExperimentOp } from "./init-experiment";
@@ -32,6 +32,11 @@ import type {
 } from "./contracts";
 
 export * from "./contracts";
+
+/** Newest activity first; sessions without runs sort last (detect output ordering). */
+function byRecency(a: DetectedSession, b: DetectedSession): number {
+  return (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0);
+}
 
 export class ExperimentService {
   private runtimes = new Map<string, SessionRuntime>();
@@ -217,17 +222,17 @@ export class ExperimentService {
     const unattached: DetectedSession[] = [];
     const seen = new Set(claimed);
     const scanRoots: { root: string; depth: number }[] = [];
-    for (const root of roots) scanRoots.push({ root, depth: SCAN_DEPTH });
+    for (const root of roots) scanRoots.push({ root, depth: DETECT_SCAN_DEPTH });
     for (const root of roots) {
       const parent = path.dirname(root);
       if (parent !== root && parent !== path.parse(parent).root) scanRoots.push({ root: parent, depth: 1 });
     }
     for (const { root, depth } of scanRoots) {
-      for (const dir of findAutoWorkdirs(root, depth)) {
+      for (const dir of this.deps.scanner.findAutoWorkdirs(root, depth)) {
         const canonical = this.logStore.canonicalPath(dir);
         if (seen.has(canonical)) continue;
         seen.add(canonical);
-        const summary = summarizeWorkdir(dir);
+        const summary = this.deps.scanner.summarize(dir);
         if (summary !== null) unattached.push(summary);
       }
     }

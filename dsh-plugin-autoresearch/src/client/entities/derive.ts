@@ -4,7 +4,7 @@
  */
 
 import { formatAgo } from "../shared/format";
-import type { ExperimentSnapshot, RunEntry } from "../features/dashboard/store";
+import type { ExperimentSnapshot, RunEntry } from "../shared/wire";
 
 export interface RunDelta {
   label: string;

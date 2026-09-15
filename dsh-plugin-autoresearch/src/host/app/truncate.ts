@@ -1,6 +1,9 @@
 /**
- * Output truncation utilities. Tail-keeping truncation mirrors the
- * pi-coding-agent helpers the original extension imports.
+ * Output truncation policy — pure text shaping for run/hook output budgets
+ * (tail-keeping truncation mirrors the pi-coding-agent helpers the original
+ * extension imports). App-layer module next to the budgets in ./ports:
+ * run-experiment shapes tool-result text with it, and the node adapters
+ * (child-runner, shell-hooks) import it inward.
  */
 
 export interface TruncateOptions {

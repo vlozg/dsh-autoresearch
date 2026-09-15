@@ -12,7 +12,7 @@ import type {
   DetectResult,
   ExperimentSnapshot,
   RunningExperiment,
-} from "../../../shared/wire";
+} from "../../shared/wire";
 
 // Re-exported for the view layer and tests (the client's public type surface).
 export type {
@@ -23,7 +23,7 @@ export type {
   MetricDef,
   RunEntry,
   RunningExperiment,
-} from "../../../shared/wire";
+} from "../../shared/wire";
 
 export interface EventSourceLike {
   addEventListener(type: string, listener: (event: { data: string }) => void): void;

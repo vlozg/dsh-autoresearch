@@ -1,6 +1,6 @@
 # dsh-plugin-autoresearch
 
-DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an autonomous experiment loop for hard problems with metrics that never reach a perfect score. The agent tries, benchmarks, keeps or discards, and repeats — without a DSH goal that it could otherwise mark "complete".
+DSH port of [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch): an autonomous experiment loop for hard problems with metrics that never reach a perfect score. The agent tries, benchmarks, keeps or discards, and repeats — without a DSH goal that it could otherwise mark "complete".
 
 ## What it provides
 
@@ -26,15 +26,21 @@ DSH port of [pi-autoresearch](https://github.com/nicobailon/pi-autoresearch): an
 
 ## Layout
 
+`docs/ARCHITECTURE.md` is the layering standard — machine-checked on every `pnpm test` by `tests/architecture.test.ts`.
+
 - `src/host/` — plugin face, layered hexagonally (dependencies point inward):
-  - `domain/` — pure kernel: JSONL data model (`model.ts`), metric math (`metrics.ts`), gates (`rules.ts`), resume policy (`resume-policy.ts`).
-  - `app/` — the core: `ports.ts` (Clock, LogStore, GitVcs, CommandRunner, HookRunner, SessionScanner + truncation budgets), `contracts.ts` (tool params/outcomes, session shapes), `experiment-service.ts` (runtimes + SSE), and one file per tool operation (`init-experiment.ts`, `run-experiment.ts`, `log-experiment.ts`).
-  - `adapters/` — node implementations of the ports: `fs-log-store.ts` (`.auto/` paths + store), `jsonl.ts`, `node-git.ts`, `child-runner.ts`, `shell-hooks.ts`, `system-clock.ts`, `fs-scanner.ts` (past-session scan), `truncate.ts`; `index.ts` exports `nodeServiceDeps()`, the ready-made kit.
-  - `infra/` — DSH-facing edges: tool schemas (`tools.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`).
+  - `domain/` — pure kernel: JSONL data model (`model.ts`), metric math (`metrics.ts`), gates (`rules.ts`), resume policy (`resume-policy.ts`). No node builtins, no framework.
+  - `app/` — the core: `ports.ts` (Clock, LogStore, GitVcs, CommandRunner, HookRunner, SessionScanner + output budgets), `contracts.ts` (tool params/outcomes, session shapes), `experiment-service.ts` (runtimes + SSE), one file per tool operation (`init-experiment.ts`, `run-experiment.ts`, `log-experiment.ts`), and the truncation policy (`truncate.ts`).
+  - `adapters/` — node implementations of the ports: `fs-log-store.ts`, `jsonl.ts`, `node-git.ts`, `child-runner.ts`, `shell-hooks.ts`, `system-clock.ts`, `fs-scanner.ts` (past-session scan); `index.ts` exports `nodeServiceDeps()`, the ready-made kit.
+  - `infra/` — DSH-facing driving edges: tool schemas (`tools.ts`), SSE HTTP (`http.ts`), skill (`skill.ts`), pi-style auto-resume (`resume.ts`).
   - `index.ts` — composition root: wires `nodeServiceDeps()` into the service.
 - `src/shared/` — `wire.ts`, the typechecker-shared host↔client contract (SSE events, snapshots, detect scan): both faces `import type` — drift fails the build, not the dashboard.
-- `src/client/` — client face: SSE store (`store.ts`, wire types re-exported from `src/shared/wire.ts`), overlay dashboard (`panel.tsx`), better-sidebar tab (`tab.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), shared atoms (`bits.tsx`), pure snapshot derivations (`derive.ts`), and text parsing/formatting (`parse.ts`, `format.ts`). Mount + registration in `index.ts`.
-- `tests/` — vitest suite (86 tests, 13 files), including direct coverage of the client's pure derivation layer.
+- `src/client/` — client face, Feature-Sliced Design (imports point one way: shared ← entities ← features ← app):
+  - `shared/` — UI atoms (`bits.tsx`), formatters (`format.ts`), and `wire.ts` — the only client file that touches the cross-face contract.
+  - `entities/` — pure business objects: snapshot derivations (`derive.ts`), tool-result parsing (`parse.ts`).
+  - `features/dashboard/` — the dashboard slice: entry, sidebar tab (`tab.tsx`), overlay panel (`panel.tsx`), run history (`runrow.tsx`), toolview cards (`toolviews.tsx`), SSE store (`store.ts`), colocated CSS.
+  - `index.ts` — app layer: mount + registration, the public client surface.
+- `tests/` — vitest suite (92 tests, 14 files): `architecture.test.ts` machine-checks the layering; `tests/client/` mirrors the client face.
 
 ## Dev
 
