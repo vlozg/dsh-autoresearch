@@ -283,7 +283,7 @@ export class ExperimentService {
       baseline_metric: findBaselineMetric(state.results, state.currentSegment),
       best_metric: this.bestOf(state),
       run_count: state.results.length,
-      goal: state.name ?? undefined,
+      ...(state.name !== null ? { goal: state.name } : {}),
       workDir: runtime.workDir,
     };
   }

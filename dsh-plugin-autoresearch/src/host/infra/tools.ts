@@ -22,6 +22,21 @@ const render = (_args: unknown, value: unknown): ContentBlock[] => [{
     : JSON.stringify(value),
 }];
 
+/**
+ * Deep-strip undefined-valued keys (undefined array slots map to null) so every
+ * tool result survives DSH's lossless-JSON tool boundary. Ops emit explicit
+ * nulls for known-optional fields; this is the boundary safety net.
+ */
+export function lossless(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((v) => lossless(v) ?? null);
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) if (v !== undefined) out[k] = lossless(v);
+    return out;
+  }
+  return value;
+}
+
 export function buildAutoResearchTools(service: ExperimentService) {
   const initExperiment = defineTool({
     name: "init_experiment",
@@ -63,7 +78,7 @@ export function buildAutoResearchTools(service: ExperimentService) {
       const r = service.resolveAgent(exec as never);
       if ("error" in r) return { ok: false, error: r.error, text: "❌ " + r.error } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
       const outcome = service.initExperiment(r.runtime, args as never);
-      return { ...outcome.value, text: outcome.text } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
+      return lossless({ ...outcome.value, text: outcome.text }) as unknown as import("@deepseek-ai/dsh-session").JsonValue;
     },
   });
 
@@ -93,7 +108,7 @@ export function buildAutoResearchTools(service: ExperimentService) {
       const r = service.resolveAgent(exec as never);
       if ("error" in r) return { ok: false, error: r.error, text: "❌ " + r.error } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
       const outcome = await service.runExperiment(r.runtime, args as never, exec.signal);
-      return { ...outcome.value, text: outcome.text } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
+      return lossless({ ...outcome.value, text: outcome.text }) as unknown as import("@deepseek-ai/dsh-session").JsonValue;
     },
   });
 
@@ -153,7 +168,7 @@ export function buildAutoResearchTools(service: ExperimentService) {
       const r = service.resolveAgent(exec as never);
       if ("error" in r) return { ok: false, error: r.error, text: "❌ " + r.error } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
       const outcome = await service.logExperiment(r.runtime, args as never);
-      return { ...outcome.value, text: outcome.text } as unknown as import("@deepseek-ai/dsh-session").JsonValue;
+      return lossless({ ...outcome.value, text: outcome.text }) as unknown as import("@deepseek-ai/dsh-session").JsonValue;
     },
   });
 

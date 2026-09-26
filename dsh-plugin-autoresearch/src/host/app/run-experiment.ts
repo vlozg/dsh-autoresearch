@@ -177,6 +177,7 @@ export async function runExperimentOp(
       text += llmTruncation.truncatedBy === "lines"
         ? `\n\n[Showing last ${llmTruncation.outputLines} of ${llmTruncation.totalLines} lines.`
         : `\n\n[Showing last ${llmTruncation.outputLines} lines (${formatSize(LLM_MAX_BYTES)} limit).`;
+      if (runLogFile) text += ` Full run log: ${runLogFile}`;
       if (fullOutputPath) text += ` Full output: ${fullOutputPath}`;
       text += `]`;
     }
@@ -200,10 +201,10 @@ export async function runExperimentOp(
         parsedMetrics,
         parsedPrimary,
         metricName: runtime.state.metricName,
-        fullOutputPath,
-        runLogPath: runLogFile,
+        fullOutputPath: fullOutputPath ?? null,
+        runLogPath: runLogFile ?? null,
         tail: displayTruncation.content,
-        truncation: llmTruncation.truncated ? llmTruncation : undefined,
+        truncation: llmTruncation.truncated ? llmTruncation : null,
       },
     };
 }

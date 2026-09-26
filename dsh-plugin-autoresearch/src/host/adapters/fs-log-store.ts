@@ -144,8 +144,8 @@ export const fsLogStore: LogStore = {
   writeRunLog(workDir, run, content) {
     if (content.trim() === "") return undefined;
     try {
-      ensureParentDir(runsDir(workDir));
       const logPath = runLogPath(workDir, run);
+      ensureParentDir(logPath);
       fs.writeFileSync(logPath, content);
       return logPath;
     } catch {
