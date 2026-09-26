@@ -7,11 +7,18 @@
  *   POST /autoresearch/stop     abort the running experiment + loop off
  *   POST /autoresearch/resume   re-arm the loop
  *
- * The BrowserSkill security fence (loopback host, origin check,
- * sec-fetch-site, JSON content-type) is copied from dsh-plugin-browserskill.
+ * Requests are fenced by the deployment's own browser-trust policy: the
+ * `connection` service's `requestRejection` — the fence DSH applies to
+ * `/api` (loopback or a declared `trustedHosts` authority from
+ * `dsh web --trusted-host <name>`, plus Origin / sec-fetch-site markers and
+ * the authority-bound browser cookie). Our routes sit outside `/api`, so they
+ * consult that seam themselves: a copied loopback-only check refuses the
+ * Tailscale / LAN authority the web UI is legitimately reached by. POST bodies
+ * must additionally be application/json. Without the seam loaded, the
+ * loopback-only BrowserSkill fence stays as the fallback.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type { ExperimentService } from "../app/experiment-service";
 
@@ -24,48 +31,80 @@ export interface WebServerLike {
   }): () => void;
 }
 
+/** Structural view of the dsh-client-connection browser-trust seam. */
+export interface ConnectionLike {
+  requestRejection(request: { headers: IncomingHttpHeaders }): 401 | 403 | undefined;
+}
+
+/** Late-bound lookup: the connection service may load after these routes. */
+export type ConnectionLookup = () => ConnectionLike | undefined;
+
+/** Fence refusal: the HTTP status plus the message surfaced to the dashboard. */
+interface FenceRejection {
+  status: 401 | 403;
+  message: string;
+}
+
 /**
- * Browser-trust fence, mirroring the one dsh applies to its /api routes (our
- * routes live outside that prefix, so the checks are replicated here):
- * loopback Host authority; a present Origin must match Host;
- * sec-fetch-site: cross-site is refused; POST must be application/json.
+ * Decide whether a request may proceed. With the connection seam present the
+ * deployment's own policy decides (loopback or a declared trusted authority,
+ * Origin / sec-fetch-site markers, authority-bound browser cookie); otherwise
+ * the loopback-only BrowserSkill fence stands in. A POST body must be JSON
+ * either way.
  */
-function fenceViolation(req: IncomingMessage): string | undefined {
-  const host = req.headers.host ?? "";
-  const hostname = /^\[.*\](?::\d+)?$/.test(host)
-    ? host.slice(1, host.indexOf("]"))
-    : host.split(":")[0];
-  const isLoopback =
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname === "::1" ||
-    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
-  if (!isLoopback) return "host is not a loopback authority";
-  const origin = req.headers.origin;
-  if (origin !== undefined && origin !== "null") {
-    let originHost: string | undefined;
-    try {
-      originHost = new URL(origin).host;
-    } catch {
-      return "unparseable Origin header";
+function fenceViolation(
+  req: IncomingMessage,
+  connection: ConnectionLookup | undefined,
+): FenceRejection | undefined {
+  const seam = connection?.();
+  if (seam !== undefined) {
+    const rejection = seam.requestRejection({ headers: req.headers });
+    if (rejection === 403) return { status: 403, message: "host is not a trusted authority" };
+    if (rejection === 401) return { status: 401, message: "browser session is not authenticated" };
+  } else {
+    const host = req.headers.host ?? "";
+    const hostname = /^\[.*\](?::\d+)?$/.test(host)
+      ? host.slice(1, host.indexOf("]"))
+      : host.split(":")[0];
+    const isLoopback =
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname === "::1" ||
+      /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+    if (!isLoopback) return { status: 403, message: "host is not a loopback authority" };
+    const origin = req.headers.origin;
+    if (origin !== undefined && origin !== "null") {
+      let originHost: string | undefined;
+      try {
+        originHost = new URL(origin).host;
+      } catch {
+        return { status: 403, message: "unparseable Origin header" };
+      }
+      if (originHost !== host) return { status: 403, message: "Origin does not match Host" };
     }
-    if (originHost !== host) return "Origin does not match Host";
+    if (req.headers["sec-fetch-site"] === "cross-site") {
+      return { status: 403, message: "sec-fetch-site: cross-site" };
+    }
   }
-  if (req.headers["sec-fetch-site"] === "cross-site") return "sec-fetch-site: cross-site";
   if (req.method === "POST") {
     const contentType = req.headers["content-type"] ?? "";
     if (!/^\s*application\/json\s*(;|$)/.test(contentType)) {
-      return "POST requires an application/json body";
+      return { status: 403, message: "POST requires an application/json body" };
     }
   }
   return undefined;
 }
 
 /** Run the fence; returns true when the request was rejected (handled). */
-function fenceRejected(req: IncomingMessage, res: ServerResponse): boolean {
-  const violation = fenceViolation(req);
+function fenceRejected(
+  req: IncomingMessage,
+  res: ServerResponse,
+  connection: ConnectionLookup | undefined,
+): boolean {
+  const violation = fenceViolation(req, connection);
   if (violation === undefined) return false;
-  sendJson(res, 403, { error: `forbidden: ${violation}` });
+  const reason = violation.status === 401 ? "unauthorized" : "forbidden";
+  sendJson(res, violation.status, { error: `${reason}: ${violation.message}` });
   return true;
 }
 
@@ -89,10 +128,15 @@ function sendJson(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value));
 }
 
-function statePayload(req: IncomingMessage, res: ServerResponse, service: ExperimentService): void {
-  // fenceRejected is true when the request was already answered (403); only
-  // then may this handler return without sending the snapshot payload.
-  if (fenceRejected(req, res)) return;
+function statePayload(
+  req: IncomingMessage,
+  res: ServerResponse,
+  service: ExperimentService,
+  connection: ConnectionLookup | undefined,
+): void {
+  // fenceRejected is true when the request was already answered (401/403);
+  // only then may this handler return without sending the snapshot payload.
+  if (fenceRejected(req, res, connection)) return;
   const url = new URL(req.url ?? "/autoresearch/state", "http://" + (req.headers.host ?? "localhost"));
   const sessionId = url.searchParams.get("sessionId");
   const snapshots = service
@@ -106,7 +150,11 @@ function statePayload(req: IncomingMessage, res: ServerResponse, service: Experi
  * composition has no web server.
  * @returns disposer removing the routes.
  */
-export function registerAutoResearchHttp(ctx: Context, service: ExperimentService): () => void {
+export function registerAutoResearchHttp(
+  ctx: Context,
+  service: ExperimentService,
+  connection?: ConnectionLookup,
+): () => void {
   const webServer = ctx.get("webServer") as WebServerLike | undefined;
   if (webServer === undefined) {
     return () => {};
@@ -120,7 +168,7 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
       kind: "exact",
       path: "/autoresearch/state",
       handler: (req, res) => {
-        statePayload(req, res, service);
+        statePayload(req, res, service, connection);
       },
     }),
   );
@@ -132,7 +180,7 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
       kind: "exact",
       path: "/autoresearch/detect",
       handler: (req, res) => {
-        if (fenceRejected(req, res)) return;
+        if (fenceRejected(req, res, connection)) return;
         const url = new URL(req.url ?? "/autoresearch/detect", "http://" + (req.headers.host ?? "localhost"));
         const sessionId = url.searchParams.get("sessionId") ?? undefined;
         try {
@@ -152,7 +200,7 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
       kind: "exact",
       path: "/autoresearch/events",
       handler: (req, res) => {
-        if (fenceRejected(req, res)) return;
+        if (fenceRejected(req, res, connection)) return;
         res.writeHead(200, {
           "content-type": "text/event-stream",
           "cache-control": "no-store",
@@ -193,7 +241,7 @@ export function registerAutoResearchHttp(ctx: Context, service: ExperimentServic
         sendJson(res, 405, { error: "POST required" });
         return;
       }
-      if (fenceRejected(req, res)) return;
+      if (fenceRejected(req, res, connection)) return;
       let sessionId: string | undefined;
       try {
         const body = await readBody(req);

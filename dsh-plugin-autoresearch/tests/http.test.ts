@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { registerAutoResearchHttp } from "../src/host/infra/http";
+import { registerAutoResearchHttp, type ConnectionLookup } from "../src/host/infra/http";
 
 interface RecordedRequest {
   headers: Record<string, string>;
@@ -114,7 +114,12 @@ describe("GET /autoresearch/detect", () => {
   });
 });
 
-async function drive(_handler: unknown, reqSpec: RecordedRequest, service: ReturnType<typeof fakeService> = fakeService()): Promise<RecordedResponse> {
+async function drive(
+  _handler: unknown,
+  reqSpec: RecordedRequest,
+  service: ReturnType<typeof fakeService> = fakeService(),
+  connection?: ConnectionLookup,
+): Promise<RecordedResponse> {
   const routes = new Map<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>>();
   const webServer = {
     register: (route: { path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => {
@@ -122,7 +127,11 @@ async function drive(_handler: unknown, reqSpec: RecordedRequest, service: Retur
       return () => {};
     },
   };
-  registerAutoResearchHttp({ get: (name: string) => (name === "webServer" ? webServer : undefined) } as never, service as never);
+  registerAutoResearchHttp(
+    { get: (name: string) => (name === "webServer" ? webServer : undefined) } as never,
+    service as never,
+    connection,
+  );
   const handler = routes.get(reqSpec.url.split("?")[0]);
   if (handler === undefined) throw new Error(`no route registered for ${reqSpec.url}`);
   const { req, res, out, emit } = makePair(reqSpec);
@@ -155,5 +164,55 @@ describe("autoresearch http", () => {
     const out = await drive(() => {}, { headers: { ...LOOPBACK, "content-type": "application/json" }, method: "POST", url: "/autoresearch/resume", body: JSON.stringify({ sessionId: "s1" }) });
     expect(out.status).toBe(200);
     expect(JSON.parse(out.body)).toEqual({ ok: true });
+  });
+});
+
+/** Stub of the dsh-client-connection seam: loopback or a declared trusted authority. */
+function seam(trustedHosts: readonly string[], authenticated = true): ConnectionLookup {
+  return () => ({
+    requestRejection: ({ headers }) => {
+      const raw = headers.host;
+      const host = typeof raw === "string" ? raw : "";
+      const loopback = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|\[::1\])(:\d+)?$/.test(host);
+      if (!loopback && !trustedHosts.includes(host)) return 403;
+      return authenticated ? undefined : 401;
+    },
+  });
+}
+
+// Regression: the dashboard must open on the Tailscale/LAN authority the web UI
+// is reached by (--trusted-host), not loopback alone — a hand-copied loopback
+// fence answered "host is not a loopback authority" on the phone.
+describe("deployment trust seam", () => {
+  const TRUSTED = "panel.example-tailnet.ts.net";
+
+  it("serves the dashboard from a declared trusted authority", async () => {
+    const out = await drive(() => {}, { headers: { host: TRUSTED }, method: "GET", url: "/autoresearch/state" }, fakeService(), seam([TRUSTED]));
+    expect(out.status).toBe(200);
+    expect(JSON.parse(out.body)).toEqual({ snapshots: [{ sessionId: "s1" }] });
+  });
+
+  it("refuses an authority the deployment never declared", async () => {
+    const out = await drive(() => {}, { headers: { host: "evil.example" }, method: "GET", url: "/autoresearch/state" }, fakeService(), seam([TRUSTED]));
+    expect(out.status).toBe(403);
+    expect(JSON.parse(out.body).error).toContain("host is not a trusted authority");
+  });
+
+  it("surfaces a missing browser session as 401, not 403", async () => {
+    const out = await drive(() => {}, { headers: { host: TRUSTED }, method: "GET", url: "/autoresearch/state" }, fakeService(), seam([TRUSTED], false));
+    expect(out.status).toBe(401);
+    expect(JSON.parse(out.body).error).toContain("unauthorized");
+  });
+
+  it("keeps the loopback-only fence when no connection service is loaded", async () => {
+    const out = await drive(() => {}, { headers: { host: TRUSTED }, method: "GET", url: "/autoresearch/state" });
+    expect(out.status).toBe(403);
+    expect(JSON.parse(out.body).error).toContain("host is not a loopback authority");
+  });
+
+  it("still requires a JSON body for POST on a trusted authority", async () => {
+    const out = await drive(() => {}, { headers: { host: TRUSTED, "content-type": "text/plain" }, method: "POST", url: "/autoresearch/resume", body: "{}" }, fakeService(), seam([TRUSTED]));
+    expect(out.status).toBe(403);
+    expect(JSON.parse(out.body).error).toContain("application/json");
   });
 });

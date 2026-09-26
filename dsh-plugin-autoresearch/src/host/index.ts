@@ -16,7 +16,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { ExperimentService, type PluginConfig } from "./app/experiment-service";
 import { buildAutoResearchTools } from "./infra/tools";
 import { AutoResumeInjector } from "./infra/resume";
-import { registerAutoResearchHttp } from "./infra/http";
+import { registerAutoResearchHttp, type ConnectionLike } from "./infra/http";
 import { autoresearchCreateSkill } from "./infra/skill";
 import { nodeServiceDeps } from "./adapters";
 
@@ -78,7 +78,21 @@ export function apply(ctx: Context, config: Partial<PluginConfig> = {}): void {
   // (and never appears in headless compositions — the callback just never runs).
   let removeRoutes: () => void = () => {};
   ctx.inject(["webServer"], (webServer) => {
-    removeRoutes = registerAutoResearchHttp(webServer, service);
+    // Trust decisions belong to the deployment, not to this plugin: the
+    // connection service holds DSH's /api fence (loopback or a declared
+    // `dsh web --trusted-host <name>` authority, plus the browser cookie).
+    // Resolved lazily because the service may be provided after this plugin.
+    const connection = (): ConnectionLike | undefined => {
+      try {
+        const seam = ctx.get("connection") as { requestRejection?: unknown } | undefined | null;
+        return seam != null && typeof seam.requestRejection === "function"
+          ? (seam as ConnectionLike)
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    removeRoutes = registerAutoResearchHttp(webServer, service, connection);
     return () => removeRoutes();
   });
 
