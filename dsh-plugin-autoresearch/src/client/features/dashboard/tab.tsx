@@ -80,7 +80,6 @@ export function SidebarTabView(props: SidebarTabViewProps): ReactNode {
       </div>
       {view.subscribed ? null : <div className="ar-connwarn">Feed disconnected — retrying…</div>}
       <SessionPanel session={session} now={now} />
-      <DetectPanel store={store} view={view} sessionId={props.scopeId} />
       {actionError !== null ? <div className="ar-note">⚠ {actionError}</div> : null}
       <div className="ar-actions ar-tabfoot">
         {session.snapshot.loop && session.snapshot.running === null ? (

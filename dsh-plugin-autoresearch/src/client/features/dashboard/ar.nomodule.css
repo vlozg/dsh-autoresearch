@@ -412,7 +412,7 @@
   font-size: 13px;
   background: transparent;
 }
-.ar-tabroot .ar-actions { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); margin: 2px -12px 0; background: rgba(13, 18, 28, 0.97); backdrop-filter: blur(6px); box-shadow: 0 -10px 18px rgba(2, 8, 14, 0.45); }
+.ar-tabroot .ar-actions { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); margin: auto -12px 0; background: rgba(13, 18, 28, 0.97); backdrop-filter: blur(6px); box-shadow: 0 -10px 18px rgba(2, 8, 14, 0.45); }
 .ar-tabhead { display: flex; align-items: center; gap: 9px; flex: none; }
 .ar-tabfoot { flex: none; position: sticky; bottom: -12px; }
 
