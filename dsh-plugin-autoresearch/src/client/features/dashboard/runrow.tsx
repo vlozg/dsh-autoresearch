@@ -41,7 +41,7 @@ export function RunRow(props: { snapshot: ExperimentSnapshot; entry: RunEntry })
             ? <span className={"ar-run-delta " + (delta.good ? "ar-good-stat" : "ar-bad-stat")}>{delta.label}</span>
             : null}
         </span>
-        <span className="ar-run-chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span className="ar-run-chev" aria-hidden="true"><IconChevron size={16} /></span>
       </button>
       {open ? null : (
         <div className="ar-run-desc" onClick={() => setOpen(true)}>

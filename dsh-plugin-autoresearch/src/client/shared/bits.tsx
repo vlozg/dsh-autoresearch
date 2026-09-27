@@ -45,8 +45,9 @@ export function IconLogs(): ReactNode {
   );
 }
 
-export function IconChevron(): ReactNode {
-  return <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+export function IconChevron(props: { size?: number } = {}): ReactNode {
+  const size = props.size ?? 12;
+  return <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 export function Chip(props: { status: string }): ReactNode {

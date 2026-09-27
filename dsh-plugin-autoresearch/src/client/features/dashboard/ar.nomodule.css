@@ -263,7 +263,7 @@
 }
 .ar-run-head {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  grid-template-columns: 44px minmax(0, 1fr) 32px;
   grid-template-areas: "no chip chev" "metrics metrics chev";
   align-items: center;
   gap: 8px;
@@ -298,7 +298,27 @@
 .ar-run-delta { flex: 0 1 auto; min-width: 0; font-size: 13px; font-weight: 500; color: #7d8da1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-run-delta.ar-bad-stat { color: rgba(248, 113, 113, 0.55); }
 .ar-run-delta.ar-good-stat { color: rgba(74, 222, 128, 0.6); }
-.ar-run-chev { grid-area: chev; align-self: center; font-size: 14px; color: #8ea0b5; text-align: center; }
+.ar-run-chev {
+  grid-area: chev;
+  align-self: center;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.08);
+  color: #a8b6c8;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.ar-run-chev svg { display: block; transform: rotate(-90deg); transition: transform 160ms ease; }
+.ar-run-head:hover .ar-run-chev { color: #e2e8f0; background: rgba(148, 163, 184, 0.16); border-color: rgba(148, 163, 184, 0.34); }
+.ar-run-head:active .ar-run-chev { background: rgba(148, 163, 184, 0.22); }
+.ar-run-head:focus-visible .ar-run-chev { outline: 2px solid rgba(56, 189, 248, 0.6); outline-offset: 1px; }
+.ar-run.ar-open .ar-run-chev { color: #cbd5e1; background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.28); }
+.ar-run.ar-open .ar-run-chev svg { transform: rotate(0deg); }
 .ar-run-desc { margin-top: 7px; cursor: pointer; -webkit-tap-highlight-color: transparent; overflow: hidden; }
 .ar-run-title {
   display: block;
